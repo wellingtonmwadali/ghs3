@@ -1,0 +1,38 @@
+import { UserModel, IUserDocument } from '../models/User.model';
+import { IUser } from '../../domain/entities/User';
+
+export class UserRepository {
+  async create(userData: IUser): Promise<IUserDocument> {
+    const user = new UserModel(userData);
+    return await user.save();
+  }
+
+  async findById(id: string): Promise<IUserDocument | null> {
+    return await UserModel.findById(id);
+  }
+
+  async findByEmail(email: string): Promise<IUserDocument | null> {
+    return await UserModel.findOne({ email: email.toLowerCase() }).select('+password');
+  }
+
+  async findAll(): Promise<IUserDocument[]> {
+    return await UserModel.find({ isActive: true }).sort({ createdAt: -1 });
+  }
+
+  async update(id: string, updateData: Partial<IUser>): Promise<IUserDocument | null> {
+    return await UserModel.findByIdAndUpdate(id, updateData, { new: true });
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const result = await UserModel.findByIdAndUpdate(id, { isActive: false });
+    return !!result;
+  }
+
+  async updateLastLogin(id: string): Promise<void> {
+    await UserModel.findByIdAndUpdate(id, { lastLogin: new Date() });
+  }
+
+  async findByRole(role: string): Promise<IUserDocument[]> {
+    return await UserModel.find({ role, isActive: true });
+  }
+}
