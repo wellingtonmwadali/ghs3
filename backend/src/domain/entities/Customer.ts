@@ -5,6 +5,7 @@ export interface ICustomer {
   email: string;
   phone: string;
   address?: string;
+  gender?: 'male' | 'female' | 'other';
   notes?: string;
   
   serviceHistory?: {

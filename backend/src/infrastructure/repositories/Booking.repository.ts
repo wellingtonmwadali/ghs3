@@ -36,4 +36,23 @@ export class BookingRepository {
       preferredDate: { $gte: today }
     }).sort({ preferredDate: 1 });
   }
+
+  async findWithPagination(query: any, skip: number, limit: number): Promise<IBookingDocument[]> {
+    return await BookingModel.find(query)
+      .sort({ preferredDate: -1 })
+      .skip(skip)
+      .limit(limit);
+  }
+
+  async count(query: any): Promise<number> {
+    return await BookingModel.countDocuments(query);
+  }
+
+  async findByReference(reference: string): Promise<IBookingDocument | null> {
+    return await BookingModel.findOne({ bookingReference: reference });
+  }
+
+  async findPendingBookings(): Promise<IBookingDocument[]> {
+    return await BookingModel.find({ status: 'pending' }).sort({ createdAt: -1 });
+  }
 }

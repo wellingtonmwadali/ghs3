@@ -37,9 +37,9 @@ export class CustomerRepository {
     return !!result;
   }
 
-  async addToServiceHistory(customerId: string, carId: string): Promise<void> {
+  async addToServiceHistory(customerId: string, serviceRecord: { date: Date, carId: string, serviceDetails: string, cost: number }): Promise<void> {
     await CustomerModel.findByIdAndUpdate(customerId, {
-      $push: { serviceHistory: carId }
+      $push: { serviceHistory: serviceRecord }
     });
   }
 
@@ -86,5 +86,9 @@ export class CustomerRepository {
 
   async searchCustomers(query: string): Promise<ICustomerDocument[]> {
     return await this.search(query);
+  }
+
+  async aggregate(pipeline: any[]): Promise<any[]> {
+    return await CustomerModel.aggregate(pipeline);
   }
 }

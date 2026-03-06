@@ -45,6 +45,7 @@ interface Mechanic {
 }
 
 export default function MechanicsPage() {
+  const toast = useToast();
   const [mechanics, setMechanics] = useState<Mechanic[]>([]);
   const [filteredMechanics, setFilteredMechanics] = useState<Mechanic[]>([]);
   const [loading, setLoading] = useState(true);
@@ -213,7 +214,7 @@ export default function MechanicsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="text-lg">Loading mechanics...</div>
+        <LoadingSpinner size="lg" text="Loading mechanics..." />
       </div>
     );
   }

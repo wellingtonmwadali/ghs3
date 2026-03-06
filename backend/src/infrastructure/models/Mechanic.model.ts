@@ -36,6 +36,7 @@ const MechanicSchema = new Schema<IMechanicDocument>(
     },
     
     hireDate: { type: Date, default: Date.now },
+    birthday: { type: Date },
     salary: { type: Number }
   },
   { timestamps: true }

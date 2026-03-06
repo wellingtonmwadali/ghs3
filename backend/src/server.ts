@@ -16,6 +16,10 @@ import authRoutes from './presentation/routes/auth.routes';
 import carRoutes from './presentation/routes/car.routes';
 import invoiceRoutes from './presentation/routes/invoice.routes';
 import customerRoutes from './presentation/routes/customer.routes';
+import mechanicRoutes from './presentation/routes/mechanic.routes';
+import inventoryRoutes from './presentation/routes/inventory.routes';
+import settingsRoutes from './presentation/routes/settings.routes';
+import bookingRoutes from './presentation/routes/booking.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
@@ -60,6 +64,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/cars', carRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/mechanics', mechanicRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/bookings', bookingRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Error handling
 app.use(notFound);

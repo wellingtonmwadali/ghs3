@@ -8,6 +8,8 @@ import { formatCurrency } from '@/lib/utils';
 import { Car, CheckCircle, Clock, DollarSign, Users, Wrench, Calendar, CloudSun, Quote, Cake, FileSpreadsheet, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useAuthStore } from '@/store/auth.store';
+import { useToast } from '@/components/ui/toast';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface DashboardStats {
   totalCarsInGarage: number;
@@ -49,6 +51,7 @@ const quotes = [
 ];
 
 export default function DashboardPage() {
+  const toast = useToast();
   const { user } = useAuthStore();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [revenue, setRevenue] = useState<RevenueStats | null>(null);
@@ -207,7 +210,7 @@ export default function DashboardPage() {
       setShowDatePicker(true);
     } else {
       // Implement Excel export logic here
-      alert(`Exporting data from ${dateRange.start} to ${dateRange.end}`);
+      toast.info(`Exporting data from ${dateRange.start} to ${dateRange.end}`);
       setShowDatePicker(false);
     }
   };
@@ -215,7 +218,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <LoadingSpinner size="lg" text="Loading dashboard..." />
       </div>
     );
   }

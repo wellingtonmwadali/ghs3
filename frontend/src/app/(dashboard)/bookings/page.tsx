@@ -39,6 +39,7 @@ interface Booking {
 }
 
 export default function BookingsPage() {
+  const toast = useToast();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -198,7 +199,7 @@ export default function BookingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="text-lg">Loading bookings...</div>
+        <LoadingSpinner size="lg" text="Loading bookings..." />
       </div>
     );
   }

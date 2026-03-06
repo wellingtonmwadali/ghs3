@@ -54,13 +54,17 @@ export class CustomerController {
 
   getAllCustomers = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { search, page, limit, sortBy, sortOrder } = req.query;
+      const { search, page, limit, sortBy, sortOrder, gender, minVisits, maxVisits, sort } = req.query;
       const result = await this.customerService.getAllCustomers({
         search: search as string,
         page: page ? parseInt(page as string) : undefined,
         limit: limit ? parseInt(limit as string) : undefined,
         sortBy: sortBy as string,
-        sortOrder: sortOrder as 'asc' | 'desc'
+        sortOrder: sortOrder as 'asc' | 'desc',
+        gender: gender as string,
+        minVisits: minVisits ? parseInt(minVisits as string) : undefined,
+        maxVisits: maxVisits ? parseInt(maxVisits as string) : undefined,
+        sort: sort as string
       });
       res.json({
         success: true,
@@ -155,6 +159,36 @@ export class CustomerController {
       res.json({
         success: true,
         data: customer
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  sendPromoToCustomers = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { customerIds, messageId } = req.body;
+      
+      if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Customer IDs are required'
+        });
+      }
+
+      if (!messageId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Message ID is required'
+        });
+      }
+
+      const result = await this.customerService.sendPromoToCustomers(customerIds, messageId);
+      
+      res.json({
+        success: true,
+        message: `Promotional message sent to ${result.sent} customer(s)`,
+        data: result
       });
     } catch (error) {
       next(error);

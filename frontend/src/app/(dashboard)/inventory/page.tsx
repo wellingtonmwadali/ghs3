@@ -36,6 +36,7 @@ interface InventoryItem {
 }
 
 export default function InventoryPage() {
+  const toast = useToast();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -202,7 +203,7 @@ export default function InventoryPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="text-lg">Loading inventory...</div>
+        <LoadingSpinner size="lg" text="Loading inventory..." />
       </div>
     );
   }

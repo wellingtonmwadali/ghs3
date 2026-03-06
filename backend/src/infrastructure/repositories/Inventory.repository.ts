@@ -52,4 +52,15 @@ export class InventoryRepository {
       isActive: true
     }).limit(20);
   }
+
+  async findWithPagination(query: any, skip: number, limit: number): Promise<IInventoryDocument[]> {
+    return await InventoryModel.find(query)
+      .sort({ itemName: 1 })
+      .skip(skip)
+      .limit(limit);
+  }
+
+  async count(query: any): Promise<number> {
+    return await InventoryModel.countDocuments(query);
+  }
 }

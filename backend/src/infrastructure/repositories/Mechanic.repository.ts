@@ -86,4 +86,21 @@ export class MechanicRepository {
       { $sort: { workload: -1 } }
     ]);
   }
+
+  async findWithPagination(query: any, skip: number, limit: number): Promise<IMechanicDocument[]> {
+    return await MechanicModel.find(query)
+      .sort({ firstName: 1, lastName: 1 })
+      .skip(skip)
+      .limit(limit);
+  }
+
+  async count(query: any): Promise<number> {
+    return await MechanicModel.countDocuments(query);
+  }
+
+  async getTopPerformers(limit: number): Promise<IMechanicDocument[]> {
+    return await MechanicModel.find()
+      .sort({ 'performance.efficiencyScore': -1, 'performance.totalJobsCompleted': -1 })
+      .limit(limit);
+  }
 }

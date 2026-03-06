@@ -31,9 +31,9 @@ const seedDatabase = async () => {
     const mechanics = await MechanicModel.insertMany([
       {
         firstName: 'John',
-        lastName: 'Painter',
-        email: 'john.painter@garage.com',
-        phone: '+1234567890',
+        lastName: 'Kamau',
+        email: 'john.kamau@garage.co.ke',
+        phone: '+254712345678',
         specialization: 'painter',
         skills: ['Spray Painting', 'Body Repair', 'Accident Repair'],
         activeJobs: [],
@@ -47,13 +47,14 @@ const seedDatabase = async () => {
         laborHoursLogged: 520,
         availability: 'available',
         hireDate: new Date('2023-01-15'),
-        salary: 55000
+        birthday: new Date('1990-03-05'),
+        salary: 75000
       },
       {
         firstName: 'Sarah',
-        lastName: 'Detailer',
-        email: 'sarah.detailer@garage.com',
-        phone: '+1234567891',
+        lastName: 'Wanjiku',
+        email: 'sarah.wanjiku@garage.co.ke',
+        phone: '+254723456789',
         specialization: 'detailer',
         skills: ['Interior Detail', 'Engine Detail', 'Buffing', 'Ceramic Coating'],
         activeJobs: [],
@@ -67,13 +68,14 @@ const seedDatabase = async () => {
         laborHoursLogged: 380,
         availability: 'available',
         hireDate: new Date('2023-03-20'),
-        salary: 48000
+        birthday: new Date('1992-03-12'),
+        salary: 65000
       },
       {
         firstName: 'Mike',
-        lastName: 'Installer',
-        email: 'mike.installer@garage.com',
-        phone: '+1234567892',
+        lastName: 'Omondi',
+        email: 'mike.omondi@garage.co.ke',
+        phone: '+254734567890',
         specialization: 'installer',
         skills: ['PPF Installation', 'Window Tinting', 'Wrap Installation'],
         activeJobs: [],
@@ -87,7 +89,260 @@ const seedDatabase = async () => {
         laborHoursLogged: 410,
         availability: 'available',
         hireDate: new Date('2023-06-10'),
-        salary: 52000
+        birthday: new Date('1988-03-18'),
+        salary: 70000
+      },
+      {
+        firstName: 'David',
+        lastName: 'Mutua',
+        email: 'david.mutua@garage.co.ke',
+        phone: '+254745678901',
+        specialization: 'technician',
+        skills: ['Engine Diagnostics', 'Electrical Systems', 'Mechanical Repair'],
+        activeJobs: [],
+        completedJobs: [],
+        performance: {
+          totalJobsCompleted: 52,
+          averageTurnaroundTime: 24,
+          efficiencyScore: 90,
+          customerRating: 4.8
+        },
+        laborHoursLogged: 480,
+        availability: 'available',
+        hireDate: new Date('2022-11-05'),
+        birthday: new Date('1985-03-03'),
+        salary: 80000
+      },
+      {
+        firstName: 'Grace',
+        lastName: 'Njeri',
+        email: 'grace.njeri@garage.co.ke',
+        phone: '+254756789012',
+        specialization: 'painter',
+        skills: ['Color Matching', 'Spray Painting', 'Panel Beating'],
+        activeJobs: [],
+        completedJobs: [],
+        performance: {
+          totalJobsCompleted: 41,
+          averageTurnaroundTime: 36,
+          efficiencyScore: 89,
+          customerRating: 4.7
+        },
+        laborHoursLogged: 445,
+        availability: 'available',
+        hireDate: new Date('2023-04-18'),
+        birthday: new Date('1991-03-25'),
+        salary: 72000
+      },
+      {
+        firstName: 'Peter',
+        lastName: 'Kiplagat',
+        email: 'peter.kiplagat@garage.co.ke',
+        phone: '+254767890123',
+        specialization: 'detailer',
+        skills: ['Ceramic Coating', 'Paint Correction', 'Interior Detailing'],
+        activeJobs: [],
+        completedJobs: [],
+        performance: {
+          totalJobsCompleted: 58,
+          averageTurnaroundTime: 8,
+          efficiencyScore: 93,
+          customerRating: 4.9
+        },
+        laborHoursLogged: 390,
+        availability: 'available',
+        hireDate: new Date('2023-02-14'),
+        birthday: new Date('1993-03-07'),
+        salary: 68000
+      },
+      {
+        firstName: 'Lucy',
+        lastName: 'Akinyi',
+        email: 'lucy.akinyi@garage.co.ke',
+        phone: '+254778901234',
+        specialization: 'installer',
+        skills: ['Vinyl Wrapping', 'PPF Installation', 'Graphics Application'],
+        activeJobs: [],
+        completedJobs: [],
+        performance: {
+          totalJobsCompleted: 35,
+          averageTurnaroundTime: 14,
+          efficiencyScore: 87,
+          customerRating: 4.6
+        },
+        laborHoursLogged: 370,
+        availability: 'available',
+        hireDate: new Date('2023-07-22'),
+        birthday: new Date('1989-03-14'),
+        salary: 69000
+      },
+      {
+        firstName: 'Daniel',
+        lastName: 'Mwangi',
+        email: 'daniel.mwangi@garage.co.ke',
+        phone: '+254789012345',
+        specialization: 'technician',
+        skills: ['AC Systems', 'Suspension', 'Brake Systems'],
+        activeJobs: [],
+        completedJobs: [],
+        performance: {
+          totalJobsCompleted: 48,
+          averageTurnaroundTime: 20,
+          efficiencyScore: 91,
+          customerRating: 4.8
+        },
+        laborHoursLogged: 450,
+        availability: 'available',
+        hireDate: new Date('2023-01-30'),
+        birthday: new Date('1987-03-21'),
+        salary: 78000
+      },
+      {
+        firstName: 'Anne',
+        lastName: 'Chemutai',
+        email: 'anne.chemutai@garage.co.ke',
+        phone: '+254790123456',
+        specialization: 'painter',
+        skills: ['Blending', 'Surface Preparation', 'Clear Coating'],
+        activeJobs: [],
+        completedJobs: [],
+        performance: {
+          totalJobsCompleted: 39,
+          averageTurnaroundTime: 40,
+          efficiencyScore: 88,
+          customerRating: 4.7
+        },
+        laborHoursLogged: 420,
+        availability: 'available',
+        hireDate: new Date('2023-05-11'),
+        birthday: new Date('1994-03-09'),
+        salary: 71000
+      },
+      {
+        firstName: 'James',
+        lastName: 'Otieno',
+        email: 'james.otieno@garage.co.ke',
+        phone: '+254701234567',
+        specialization: 'detailer',
+        skills: ['Engine Bay Detailing', 'Leather Treatment', 'Headlight Restoration'],
+        activeJobs: [],
+        completedJobs: [],
+        performance: {
+          totalJobsCompleted: 62,
+          averageTurnaroundTime: 7,
+          efficiencyScore: 94,
+          customerRating: 4.8
+        },
+        laborHoursLogged: 400,
+        availability: 'available',
+        hireDate: new Date('2023-03-08'),
+        birthday: new Date('1990-03-16'),
+        salary: 67000
+      },
+      {
+        firstName: 'Mary',
+        lastName: 'Wambui',
+        email: 'mary.wambui@garage.co.ke',
+        phone: '+254712345689',
+        specialization: 'installer',
+        skills: ['Window Tinting', 'Paint Protection Film', 'Decals'],
+        activeJobs: [],
+        completedJobs: [],
+        performance: {
+          totalJobsCompleted: 33,
+          averageTurnaroundTime: 15,
+          efficiencyScore: 86,
+          customerRating: 4.5
+        },
+        laborHoursLogged: 355,
+        availability: 'available',
+        hireDate: new Date('2023-08-19'),
+        birthday: new Date('1992-03-28'),
+        salary: 66000
+      },
+      {
+        firstName: 'Patrick',
+        lastName: 'Kimani',
+        email: 'patrick.kimani@garage.co.ke',
+        phone: '+254723456790',
+        specialization: 'technician',
+        skills: ['Transmission', 'Engine Repair', 'Computer Diagnostics'],
+        activeJobs: [],
+        completedJobs: [],
+        performance: {
+          totalJobsCompleted: 44,
+          averageTurnaroundTime: 28,
+          efficiencyScore: 89,
+          customerRating: 4.7
+        },
+        laborHoursLogged: 465,
+        availability: 'available',
+        hireDate: new Date('2022-12-12'),
+        birthday: new Date('1986-03-11'),
+        salary: 79000
+      },
+      {
+        firstName: 'Rebecca',
+        lastName: 'Njoroge',
+        email: 'rebecca.njoroge@garage.co.ke',
+        phone: '+254734567891',
+        specialization: 'painter',
+        skills: ['Custom Paint', 'Airbrushing', 'Refinishing'],
+        activeJobs: [],
+        completedJobs: [],
+        performance: {
+          totalJobsCompleted: 37,
+          averageTurnaroundTime: 44,
+          efficiencyScore: 87,
+          customerRating: 4.6
+        },
+        laborHoursLogged: 410,
+        availability: 'available',
+        hireDate: new Date('2023-06-03'),
+        birthday: new Date('1995-03-22'),
+        salary: 70000
+      },
+      {
+        firstName: 'Thomas',
+        lastName: 'Korir',
+        email: 'thomas.korir@garage.co.ke',
+        phone: '+254745678902',
+        specialization: 'detailer',
+        skills: ['Steam Cleaning', 'Odor Removal', 'Fabric Protection'],
+        activeJobs: [],
+        completedJobs: [],
+        performance: {
+          totalJobsCompleted: 55,
+          averageTurnaroundTime: 9,
+          efficiencyScore: 92,
+          customerRating: 4.8
+        },
+        laborHoursLogged: 385,
+        availability: 'available',
+        hireDate: new Date('2023-04-25'),
+        birthday: new Date('1991-03-30'),
+        salary: 66000
+      },
+      {
+        firstName: 'Elizabeth',
+        lastName: 'Wairimu',
+        email: 'elizabeth.wairimu@garage.co.ke',
+        phone: '+254756789013',
+        specialization: 'installer',
+        skills: ['Full Vehicle Wrap', 'Chrome Delete', 'Emblem Installation'],
+        activeJobs: [],
+        completedJobs: [],
+        performance: {
+          totalJobsCompleted: 31,
+          averageTurnaroundTime: 16,
+          efficiencyScore: 85,
+          customerRating: 4.5
+        },
+        laborHoursLogged: 345,
+        availability: 'available',
+        hireDate: new Date('2023-09-01'),
+        birthday: new Date('1993-03-19'),
+        salary: 65000
       }
     ]);
     console.log(`✅ Seeded ${mechanics.length} mechanics`);
@@ -97,32 +352,33 @@ const seedDatabase = async () => {
       {
         firstName: 'Admin',
         lastName: 'Owner',
-        email: 'admin@garage.com',
-        password: 'admin123',
+        email: 'admin@garage.co.ke',
+        password: '$2a$12$5NIYlaphHKKE4ZzMHjdV5.4VFx9WRT9LZf0nnWdWy5K.G/BZZebqm',
         role: 'owner',
         isActive: true
       },
       {
         firstName: 'Manager',
-        lastName: 'Smith',        email: 'manager@garage.com',
-        password: 'manager123',
+        lastName: 'Kipchoge',        
+        email: 'manager@garage.co.ke',
+        password: '$2a$12$5NIYlaphHKKE4ZzMHjdV5.4VFx9WRT9LZf0nnWdWy5K.G/BZZebqm',
         role: 'manager',
         isActive: true
       },
       {
         firstName: 'John',
-        lastName: 'Painter',
-        email: 'mechanic@garage.com',
-        password: 'mechanic123',
+        lastName: 'Kamau',
+        email: 'mechanic@garage.co.ke',
+       password: '$2a$12$5NIYlaphHKKE4ZzMHjdV5.4VFx9WRT9LZf0nnWdWy5K.G/BZZebqm',
         role: 'mechanic',
         mechanicId: mechanics[0]._id,
         isActive: true
       },
       {
         firstName: 'Jane',
-        lastName: 'Receptionist',
-        email: 'receptionist@garage.com',
-        password: 'receptionist123',
+        lastName: 'Achieng',
+        email: 'receptionist@garage.co.ke',
+        password: '$2a$12$5NIYlaphHKKE4ZzMHjdV5.4VFx9WRT9LZf0nnWdWy5K.G/BZZebqm',
         role: 'receptionist',
         isActive: true
       }
@@ -132,29 +388,32 @@ const seedDatabase = async () => {
     // Seed Customers
     const customers = await CustomerModel.insertMany([
       {
-        name: 'Robert Johnson',
-        email: 'robert.j@email.com',
-        phone: '+1234560001',
-        address: '123 Main St, Los Angeles, CA 90001',
+        name: 'Robert Njoroge',
+        email: 'robert.njoroge@email.com',
+        phone: '+254701234567',
+        address: 'Westlands, Nairobi',
+        birthday: new Date('1985-06-15'),
         notes: 'Preferred customer, always on time',
         serviceHistory: []
       },
       {
-        name: 'Maria Garcia',
-        email: 'maria.g@email.com',
-        phone: '+1234560002',
-        address: '456 Oak Ave, San Diego, CA 92101',
+        name: 'Maria Mutua',
+        email: 'maria.mutua@email.com',
+        phone: '+254702345678',
+        address: 'Lavington, Nairobi',
+        birthday: new Date('1990-09-22'),
         serviceHistory: []
       },
       {
-        name: 'David Lee',
-        email: 'david.lee@email.com',
-        phone: '+1234560003',
-        address: '789 Pine Rd, Santa Monica, CA 90401',
-        notes: 'Owns multiple vehicles',
+        name: 'David Kimani',
+        email: 'david.kimani@email.com',
+        phone: '+254703456789',
+        address: 'Karen, Nairobi',
+        birthday: new Date('1978-12-03'),
         serviceHistory: []
       }
     ]);
+    console.log(`✅ Seeded ${customers.length} customers`);
     console.log(`✅ Seeded ${customers.length} customers`);
 
     // Seed Services
@@ -357,81 +616,97 @@ const seedDatabase = async () => {
     ]);
     console.log(`✅ Seeded ${inventory.length} inventory items`);
 
-    // Seed some sample cars
-    const sampleCars = await CarModel.insertMany([
-      {
-        customerId: customers[0]._id,
-        customerName: customers[0].name,
-        vehicleModel: 'Toyota Camry 2020',
-        vehiclePlate: 'ABC-1234',
-        vehicleYear: 2020,
-        vehicleColor: 'Silver',
-        serviceType: 'clean_shine',
-        services: ['Interior Detail', 'Engine Detail'],
-        stage: 'detailing',
-        statusProgress: 60,
-        assignedMechanicId: mechanics[1]._id?.toString(),
-        assignedMechanicName: `${mechanics[1].firstName} ${mechanics[1].lastName}`,
-        estimatedCost: 250,
-        paidAmount: 0,
-        paymentStatus: 'pending',
-        checkInDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-        expectedCompletionDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-        daysInGarage: 2,
-        beforePhotos: []
-      },
-      {
-        customerId: customers[1]._id,
-        customerName: customers[1].name,
-        vehicleModel: 'BMW 3 Series 2021',
-        vehiclePlate: 'XYZ-5678',
-        vehicleYear: 2021,
-        vehicleColor: 'Black',
-        serviceType: 'coat_guard',
-        services: ['Ceramic Coating'],
-        stage: 'quality_check',
-        statusProgress: 90,
-        assignedMechanicId: mechanics[1]._id?.toString(),
-        assignedMechanicName: `${mechanics[1].firstName} ${mechanics[1].lastName}`,
-        estimatedCost: 1200,
-        paidAmount: 600,
-        paymentStatus: 'partial',
-        checkInDate: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-        expectedCompletionDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-        daysInGarage: 4,
-        beforePhotos: []
-      },
-      {
-        customerId: customers[2]._id,
-        customerName: customers[2].name,
-        vehicleModel: 'Tesla Model 3 2022',
-        vehiclePlate: 'TES-9999',
-        vehicleYear: 2022,
-        vehicleColor: 'White',
-        serviceType: 'colour_repair',
-        services: ['Spray Painting'],
-        stage: 'painting',
-        statusProgress: 45,
-        assignedMechanicId: mechanics[0]._id?.toString(),
-        assignedMechanicName: `${mechanics[0].firstName} ${mechanics[0].lastName}`,
-        estimatedCost: 800,
-        paidAmount: 0,
-        paymentStatus: 'pending',
-        checkInDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-        expectedCompletionDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-        daysInGarage: 3,
-        damageAssessment: 'Minor scratch on rear bumper',
-        beforePhotos: []
+    // Seed 24 sample cars (4 per stage) with KBB plates
+    const carModels = [
+      { make: 'BMW', model: '3 Series', years: [2020, 2021, 2022, 2023] },
+      { make: 'BMW', model: '5 Series', years: [2020, 2021, 2022, 2023] },
+      { make: 'BMW', model: 'X5', years: [2020, 2021, 2022, 2023] },
+      { make: 'Mercedes', model: 'C-Class', years: [2020, 2021, 2022, 2023] },
+      { make: 'Mercedes', model: 'E-Class', years: [2020, 2021, 2022, 2023] },
+      { make: 'Mercedes', model: 'GLE', years: [2020, 2021, 2022, 2023] },
+      { make: 'Audi', model: 'A4', years: [2020, 2021, 2022, 2023] },
+      { make: 'Audi', model: 'A6', years: [2020, 2021, 2022, 2023] },
+      { make: 'Audi', model: 'Q5', years: [2020, 2021, 2022, 2023] },
+      { make: 'Toyota', model: 'Camry', years: [2019, 2020, 2021, 2022] },
+      { make: 'Toyota', model: 'Land Cruiser', years: [2020, 2021, 2022, 2023] },
+      { make: 'Nissan', model: 'Patrol', years: [2019, 2020, 2021, 2022] },
+      { make: 'Nissan', model: 'X-Trail', years: [2019, 2020, 2021, 2022] }
+    ];
+    
+    const colors = ['Black', 'White', 'Silver', 'Blue', 'Gray', 'Red'];
+    const stages = ['waiting_inspection', 'in_repair', 'painting', 'detailing', 'quality_check', 'ready_pickup'];
+    const serviceTypes = ['colour_repair', 'clean_shine', 'coat_guard'];
+    
+    const sampleCars = [];
+    let plateNumber = 1;
+    
+    for (let stageIndex = 0; stageIndex < stages.length; stageIndex++) {
+      const stage = stages[stageIndex];
+      
+      for (let carInStage = 0; carInStage < 6; carInStage++) {
+        const carModel = carModels[Math.floor(Math.random() * carModels.length)];
+        const year = carModel.years[Math.floor(Math.random() * carModel.years.length)];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const customer = customers[Math.floor(Math.random() * customers.length)];
+        const serviceType = serviceTypes[Math.floor(Math.random() * serviceTypes.length)];
+        
+        // Assign mechanics based on stage
+        let assignedMechanic = null;
+        let statusProgress = 0;
+        
+        if (stage === 'in_repair') {
+          assignedMechanic = mechanics[0];
+          statusProgress = 30;
+        } else if (stage === 'painting') {
+          assignedMechanic = mechanics[0];
+          statusProgress = 50;
+        } else if (stage === 'detailing') {
+          assignedMechanic = mechanics[1];
+          statusProgress = 70;
+        } else if (stage === 'quality_check') {
+          statusProgress = 90;
+        } else if (stage === 'ready_pickup') {
+          statusProgress = 100;
+        }
+        
+        const daysInGarage = Math.floor(Math.random() * 7) + 1;
+        const plateStr = `KBB${String(plateNumber).padStart(3, '0')}${String.fromCharCode(65 + carInStage)}`;
+        plateNumber++;
+        
+        sampleCars.push({
+          customerId: customer._id,
+          customerName: customer.name,
+          vehicleModel: `${carModel.make} ${carModel.model} ${year}`,
+          vehiclePlate: plateStr,
+          vehicleYear: year,
+          vehicleColor: color,
+          serviceType: serviceType,
+          services: ['Interior Detail'],
+          stage: stage,
+          statusProgress: statusProgress,
+          assignedMechanicId: assignedMechanic?._id?.toString(),
+          assignedMechanicName: assignedMechanic ? `${assignedMechanic.firstName} ${assignedMechanic.lastName}` : undefined,
+          estimatedCost: Math.floor(Math.random() * 100000) + 50000, // Ksh 50k-150k
+          paidAmount: statusProgress >= 90 ? Math.floor(Math.random() * 50000) : 0,
+          paymentStatus: statusProgress >= 90 ? (Math.random() > 0.5 ? 'partial' : 'pending') : 'pending',
+          checkInDate: new Date(Date.now() - daysInGarage * 24 * 60 * 60 * 1000),
+          expectedCompletionDate: new Date(Date.now() + (7 - daysInGarage) * 24 * 60 * 60 * 1000),
+          daysInGarage: daysInGarage,
+          damageAssessment: serviceType === 'colour_repair' ? 'Minor scratches and paint damage' : undefined,
+          beforePhotos: []
+        });
       }
-    ]);
-    console.log(`✅ Seeded ${sampleCars.length} sample cars`);
+    }
+    
+    await CarModel.insertMany(sampleCars);
+    console.log(`✅ Seeded ${sampleCars.length} sample cars (6 per stage) with KBB plates`);
 
     console.log('\n✨ Database seeding completed successfully!\n');
     console.log('📧 Login credentials:');
-    console.log('   Owner: admin@garage.com / admin123');
-    console.log('   Manager: manager@garage.com / manager123');
-    console.log('   Mechanic: mechanic@garage.com / mechanic123');
-    console.log('   Receptionist: receptionist@garage.com / receptionist123\n');
+    console.log('   Owner: admin@garage.co.ke / admin123');
+    console.log('   Manager: manager@garage.co.ke / manager123');
+    console.log('   Mechanic: mechanic@garage.co.ke / mechanic123');
+    console.log('   Receptionist: receptionist@garage.co.ke / receptionist123\n');
 
     process.exit(0);
   } catch (error) {

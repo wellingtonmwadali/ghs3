@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, Eye, Mail, Phone, MapPin } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Eye, Mail, Phone, MapPin, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,12 +15,16 @@ import {
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
 import api from '@/lib/api';
+import * as XLSX from 'xlsx';
+import { useToast } from '@/components/ui/toast';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface Customer {
   _id: string;
   name: string;
   email: string;
   phone: string;
+  gender?: 'male' | 'female' | 'other';
   address?: string;
   notes?: string;
   serviceHistory?: {
@@ -34,6 +38,7 @@ interface Customer {
 }
 
 export default function CustomersPage() {
+  const toast = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,19 +50,47 @@ export default function CustomersPage() {
     name: '',
     email: '',
     phone: '',
+    gender: '' as '' | 'male' | 'female' | 'other',
     address: '',
     notes: ''
   });
+  const [filterGender, setFilterGender] = useState<string>('all');
+  const [filterMinVisits, setFilterMinVisits] = useState<string>('');
+  const [filterMaxVisits, setFilterMaxVisits] = useState<string>('');
+  const [dateSort, setDateSort] = useState<'newest' | 'oldest'>('newest');
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportDateRange, setExportDateRange] = useState({
+    startDate: '',
+    endDate: ''
+  });
+  const [isPromoMode, setIsPromoMode] = useState(false);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [selectedPromoMessage, setSelectedPromoMessage] = useState<string>('');
+  const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
     fetchCustomers();
-  }, [searchQuery]);
+    fetchSettings();
+  }, [searchQuery, filterGender, filterMinVisits, filterMaxVisits, dateSort]);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await api.get('/settings');
+      setSettings(response.data.data);
+    } catch (error) {
+      console.error('Failed to fetch settings:', error);
+    }
+  };
 
   const fetchCustomers = async () => {
     try {
       setLoading(true);
       const params: any = {};
       if (searchQuery) params.search = searchQuery;
+      if (filterGender && filterGender !== 'all') params.gender = filterGender;
+      if (filterMinVisits) params.minVisits = filterMinVisits;
+      if (filterMaxVisits) params.maxVisits = filterMaxVisits;
+      params.sort = dateSort === 'newest' ? '-createdAt' : 'createdAt';
       
       const response = await api.get('/customers', { params });
       setCustomers(response.data.data);
@@ -112,6 +145,7 @@ export default function CustomersPage() {
       name: customer.name,
       email: customer.email,
       phone: customer.phone,
+      gender: customer.gender || '',
       address: customer.address || '',
       notes: customer.notes || ''
     });
@@ -128,6 +162,7 @@ export default function CustomersPage() {
       name: '',
       email: '',
       phone: '',
+      gender: '',
       address: '',
       notes: ''
     });
@@ -153,6 +188,106 @@ export default function CustomersPage() {
     return customer.serviceHistory.reduce((sum, service) => sum + service.cost, 0);
   };
 
+  const handleExportToExcel = async () => {
+    try {
+      const params: any = {};
+      if (exportDateRange.startDate) params.startDate = exportDateRange.startDate;
+      if (exportDateRange.endDate) params.endDate = exportDateRange.endDate;
+      
+      const response = await api.get('/customers', { params });
+      const customersData = response.data.data;
+
+      // Prepare data for Excel
+      const excelData = customersData.map((customer: Customer) => ({
+        'Name': customer.name,
+        'Email': customer.email,
+        'Phone': customer.phone,
+        'Gender': customer.gender ? customer.gender.charAt(0).toUpperCase() + customer.gender.slice(1) : 'N/A',
+        'Address': customer.address || 'N/A',
+        'Total Spent (Ksh)': getTotalSpent(customer),
+        'Visit Count': customer.serviceHistory?.length || 0,
+        'First Visit': customer.createdAt ? formatDate(customer.createdAt) : 'N/A',
+        'Last Service': customer.serviceHistory && customer.serviceHistory.length > 0 
+          ? formatDate(customer.serviceHistory[customer.serviceHistory.length - 1].date) 
+          : 'N/A'
+      }));
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 20 }, // Name
+        { wch: 25 }, // Email
+        { wch: 15 }, // Phone
+        { wch: 10 }, // Gender
+        { wch: 30 }, // Address
+        { wch: 15 }, // Total Spent
+        { wch: 12 }, // Visit Count
+        { wch: 15 }, // First Visit
+        { wch: 15 }  // Last Service
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Customers');
+
+      // Generate filename with date range
+      const filename = exportDateRange.startDate && exportDateRange.endDate
+        ? `customers_${exportDateRange.startDate}_to_${exportDateRange.endDate}.xlsx`
+        : `customers_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(wb, filename);
+      
+      setShowExportDialog(false);
+      setExportDateRange({ startDate: '', endDate: '' });
+    } catch (error) {
+      console.error('Failed to export customers:', error);
+      toast.error('Failed to export customers to Excel');
+    }
+  };
+
+  const handleToggleCustomerSelection = (customerId: string) => {
+    setSelectedCustomerIds(prev => 
+      prev.includes(customerId) 
+        ? prev.filter(id => id !== customerId)
+        : [...prev, customerId]
+    );
+  };
+
+  const handleSelectAllCustomers = () => {
+    if (selectedCustomerIds.length === customers.length) {
+      setSelectedCustomerIds([]);
+    } else {
+      setSelectedCustomerIds(customers.map(c => c._id));
+    }
+  };
+
+  const handleSendPromo = async () => {
+    if (selectedCustomerIds.length === 0) {
+      toast.warning('Please select at least one customer');
+      return;
+    }
+    if (!selectedPromoMessage) {
+      toast.warning('Please select a promotional message');
+      return;
+    }
+
+    try {
+      await api.post('/customers/send-promo', {
+        customerIds: selectedCustomerIds,
+        messageId: selectedPromoMessage
+      });
+      toast.success(`Promotional message sent to ${selectedCustomerIds.length} customer(s)`);
+      setIsPromoMode(false);
+      setSelectedCustomerIds([]);
+      setSelectedPromoMessage('');
+    } catch (error) {
+      console.error('Failed to send promotional message:', error);
+      toast.error('Failed to send promotional message');
+    }
+  };
+
   return (
     <div className="h-full p-8">
       <div className="mb-8 flex items-center justify-between">
@@ -162,28 +297,144 @@ export default function CustomersPage() {
             Manage customer information and history
           </p>
         </div>
-        <Button
-          onClick={() => {
-            resetForm();
-            setShowAddDialog(true);
-          }}
-          className="gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Add Customer
-        </Button>
+        <div className="flex gap-2">
+          {isPromoMode ? (
+            <>
+              <div className="flex items-center gap-2 mr-4">
+                <Label>Message:</Label>
+                <select
+                  className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  value={selectedPromoMessage}
+                  onChange={(e) => setSelectedPromoMessage(e.target.value)}
+                >
+                  <option value="">Select promotional message</option>
+                  {settings?.promotionalMessages?.map((msg: any) => (
+                    <option key={msg.id} value={msg.id}>{msg.title}</option>
+                  ))}
+                </select>
+              </div>
+              <Button
+                onClick={handleSendPromo}
+                disabled={selectedCustomerIds.length === 0 || !selectedPromoMessage}
+                className="gap-2"
+              >
+                <Mail className="h-4 w-4" />
+                Send to {selectedCustomerIds.length} selected
+              </Button>
+              <Button
+                onClick={() => {
+                  setIsPromoMode(false);
+                  setSelectedCustomerIds([]);
+                  setSelectedPromoMessage('');
+                }}
+                variant="outline"
+              >
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={() => setIsPromoMode(true)}
+                variant="outline"
+                className="gap-2"
+              >
+                <Mail className="h-4 w-4" />
+                Send Promo
+              </Button>
+              <Button
+                onClick={() => setShowExportDialog(true)}
+                variant="outline"
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Export to Excel
+              </Button>
+              <Button
+                onClick={() => {
+                  resetForm();
+                  setShowAddDialog(true);
+                }}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Customer
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <Card className="p-6">
-        <div className="mb-6 flex items-center gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, email, or phone..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+        <div className="mb-6 space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, email, or phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+          
+          {/* Filters Row */}
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Label className="text-sm">Gender:</Label>
+              <select
+                className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={filterGender}
+                onChange={(e) => setFilterGender(e.target.value)}
+              >
+                <option value="all">All</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Label className="text-sm">Visits:</Label>
+              <Input
+                type="number"
+                placeholder="Min"
+                value={filterMinVisits}
+                onChange={(e) => setFilterMinVisits(e.target.value)}
+                className="w-20 h-9"
+              />
+              <span className="text-sm text-muted-foreground">to</span>
+              <Input
+                type="number"
+                placeholder="Max"
+                value={filterMaxVisits}
+                onChange={(e) => setFilterMaxVisits(e.target.value)}
+                className="w-20 h-9"
+              />
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Label className="text-sm">Sort:</Label>
+              <div className="flex gap-1">
+                <Button
+                  variant={dateSort === 'newest' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setDateSort('newest')}
+                  className="h-9"
+                >
+                  Newest
+                </Button>
+                <Button
+                  variant={dateSort === 'oldest' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setDateSort('oldest')}
+                  className="h-9"
+                >
+                  Oldest
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -191,62 +442,84 @@ export default function CustomersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                {isPromoMode && (
+                  <TableHead className="w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedCustomerIds.length === customers.length && customers.length > 0}
+                      onChange={handleSelectAllCustomers}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                  </TableHead>
+                )}
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Total Spent</TableHead>
                 <TableHead>Services</TableHead>
                 <TableHead>Joined</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {!isPromoMode && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center">
-                    Loading...
+                  <TableCell colSpan={isPromoMode ? 7 : 7} className="text-center">
+                    <LoadingSpinner size="sm" text="Loading customers..." />
                   </TableCell>
                 </TableRow>
               ) : customers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={isPromoMode ? 7 : 7} className="text-center text-muted-foreground">
                     No customers found
                   </TableCell>
                 </TableRow>
               ) : (
                 customers.map((customer) => (
                   <TableRow key={customer._id}>
+                    {isPromoMode && (
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={selectedCustomerIds.includes(customer._id)}
+                          onChange={() => handleToggleCustomerSelection(customer._id)}
+                          className="w-4 h-4 cursor-pointer"
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-medium">{customer.name}</TableCell>
                     <TableCell>{customer.email}</TableCell>
                     <TableCell>{customer.phone}</TableCell>
                     <TableCell>{formatCurrency(getTotalSpent(customer))}</TableCell>
                     <TableCell>{customer.serviceHistory?.length || 0}</TableCell>
                     <TableCell>{formatDate(customer.createdAt)}</TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openViewDialog(customer)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditDialog(customer)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteCustomer(customer._id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {!isPromoMode && (
+                      <TableCell>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openViewDialog(customer)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditDialog(customer)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteCustomer(customer._id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -289,6 +562,20 @@ export default function CustomersPage() {
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     required
                   />
+                </div>
+                <div>
+                  <Label htmlFor="gender">Gender</Label>
+                  <select
+                    id="gender"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value as '' | 'male' | 'female' | 'other' })}
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
                 <div>
                   <Label htmlFor="address">Address</Label>
@@ -359,6 +646,20 @@ export default function CustomersPage() {
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     required
                   />
+                </div>
+                <div>
+                  <Label htmlFor="edit-gender">Gender</Label>
+                  <select
+                    id="edit-gender"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value as '' | 'male' | 'female' | 'other' })}
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
                 <div>
                   <Label htmlFor="edit-address">Address</Label>
@@ -471,6 +772,54 @@ export default function CustomersPage() {
                 }}
               >
                 Close
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Export to Excel Dialog */}
+      {showExportDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md p-6">
+            <h2 className="mb-6 text-2xl font-semibold">Export Customers to Excel</h2>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Select a date range to filter customers by their registration date. Leave empty to export all customers.
+              </p>
+              <div>
+                <Label htmlFor="startDate">Start Date</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={exportDateRange.startDate}
+                  onChange={(e) => setExportDateRange({ ...exportDateRange, startDate: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="endDate">End Date</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={exportDateRange.endDate}
+                  onChange={(e) => setExportDateRange({ ...exportDateRange, endDate: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowExportDialog(false);
+                  setExportDateRange({ startDate: '', endDate: '' });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleExportToExcel}>
+                <Download className="h-4 w-4 mr-2" />
+                Export
               </Button>
             </div>
           </Card>

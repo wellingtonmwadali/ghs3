@@ -32,6 +32,9 @@ router.put('/:id', customerController.updateCustomer);
 // Add service to customer history
 router.post('/:id/history', customerController.addServiceToHistory);
 
+// Send promotional message to customers
+router.post('/send-promo', customerController.sendPromoToCustomers);
+
 // Delete customer
 router.delete('/:id', customerController.deleteCustomer);
 

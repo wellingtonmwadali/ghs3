@@ -46,8 +46,16 @@ export class CarService {
       await this.mechanicRepository.assignJob(car.assignedMechanicId, car._id!.toString());
     }
 
-    // Add to customer service history
-    await this.customerRepository.addToServiceHistory(carData.customerId, car._id!.toString());
+    // Add to customer service history with proper structure
+    await this.customerRepository.addToServiceHistory(
+      carData.customerId, 
+      {
+        date: new Date(),
+        carId: car._id!.toString(),
+        serviceDetails: `${carData.serviceType.replace('_', ' ')} - ${carData.vehicleModel}`,
+        cost: carData.estimatedCost
+      }
+    );
 
     return car;
   }

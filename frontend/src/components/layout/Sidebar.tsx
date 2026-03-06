@@ -11,19 +11,20 @@ import {
   Package, 
   Wrench, 
   Calendar,
+  Settings,
   LogOut 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Garage Board', href: '/garage-board', icon: Car },
   { name: 'Cars', href: '/cars', icon: Car },
   { name: 'Customers', href: '/customers', icon: Users },
   { name: 'Invoices', href: '/invoices', icon: FileText },
   { name: 'Inventory', href: '/inventory', icon: Package },
-  { name: 'Mechanics', href: '/mechanics', icon: Wrench },
+  { name: 'Team', href: '/mechanics', icon: Wrench },
   { name: 'Bookings', href: '/bookings', icon: Calendar },
+  { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export default function Sidebar() {

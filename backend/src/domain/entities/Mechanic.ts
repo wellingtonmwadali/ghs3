@@ -24,6 +24,7 @@ export interface IMechanic {
   availability: 'available' | 'busy' | 'off';
   
   hireDate: Date;
+  birthday?: Date;
   salary?: number;
   
   createdAt?: Date;

@@ -9,6 +9,7 @@ const CustomerSchema = new Schema<ICustomerDocument>(
     email: { type: String, required: true, unique: true, lowercase: true },
     phone: { type: String, required: true },
     address: { type: String },
+    gender: { type: String, enum: ['male', 'female', 'other'] },
     notes: { type: String },
     
     serviceHistory: [{

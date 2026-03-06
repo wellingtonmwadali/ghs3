@@ -44,6 +44,7 @@ interface Invoice {
 }
 
 export default function InvoicesPage() {
+  const toast = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,7 +116,7 @@ export default function InvoicesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="text-lg">Loading invoices...</div>
+        <LoadingSpinner size="lg" text="Loading invoices..." />
       </div>
     );
   }
