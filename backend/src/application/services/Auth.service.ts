@@ -90,17 +90,27 @@ export class AuthService {
   }
 
   private generateToken(userId: string, role: string): string {
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'your-super-secret-jwt-key') {
+      throw new Error('JWT_SECRET must be set in environment variables for security');
+    }
+    
     return jwt.sign(
-      { userId, role },
-      process.env.JWT_SECRET || 'your-super-secret-jwt-key',
-      { expiresIn: process.env.JWT_EXPIRE || '7d' } as any
+      { _id: userId, userId, role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRE || '24h' } as any
     );
   }
 
   verifyToken(token: string): any {
     try {
-      return jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key');
-    } catch (error) {
+      if (!process.env.JWT_SECRET) {
+        throw new AppError('JWT configuration error', 500);
+      }
+      return jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error: any) {
+      if (error.name === 'TokenExpiredError') {
+        throw new AppError('Token has expired. Please login again', 401);
+      }
       throw new AppError('Invalid or expired token', 401);
     }
   }

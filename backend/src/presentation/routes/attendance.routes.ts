@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { AttendanceController } from '../controllers/Attendance.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
+import { validate } from '../middlewares/validation.middleware';
+import { clockInSchema, clockOutSchema } from '../../application/dto/validation.schemas';
 
 const router = Router();
 const attendanceController = new AttendanceController();
@@ -8,11 +10,11 @@ const attendanceController = new AttendanceController();
 // All routes require authentication
 router.use(authenticate);
 
-// Clock in (mechanics only)
-router.post('/clock-in', authorize('mechanic'), attendanceController.clockIn.bind(attendanceController));
+// Clock in/out - mechanics only - with geolocation validation
+router.post('/clock-in', authorize('mechanic'), validate(clockInSchema), attendanceController.clockIn.bind(attendanceController));
 
-// Clock out (mechanics only)
-router.post('/clock-out', authorize('mechanic'), attendanceController.clockOut.bind(attendanceController));
+// Clock out - with geolocation validation
+router.post('/clock-out', authorize('mechanic'), validate(clockOutSchema), attendanceController.clockOut.bind(attendanceController));
 
 // Get current status of logged-in mechanic
 router.get('/status', authorize('mechanic'), attendanceController.getCurrentStatus.bind(attendanceController));

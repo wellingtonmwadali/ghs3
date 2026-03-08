@@ -10,7 +10,16 @@ export class CarController {
 
   createCar = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const car = await this.carService.createCar(req.body);
+      const user = (req as any).user;
+      
+      // Add audit trail - who created this record
+      const carData = {
+        ...req.body,
+        createdBy: user._id || user.userId,
+        createdByName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'System'
+      };
+      
+      const car = await this.carService.createCar(carData);
 
       res.status(201).json({
         success: true,
@@ -62,7 +71,16 @@ export class CarController {
 
   updateCar = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const car = await this.carService.updateCar(req.params.id, req.body);
+      const user = (req as any).user;
+      
+      // Add audit trail - who modified this record
+      const updateData = {
+        ...req.body,
+        lastModifiedBy: user._id || user.userId,
+        lastModifiedByName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'System'
+      };
+      
+      const car = await this.carService.updateCar(req.params.id, updateData);
 
       res.status(200).json({
         success: true,

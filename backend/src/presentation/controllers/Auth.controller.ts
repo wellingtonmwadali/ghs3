@@ -39,7 +39,7 @@ export class AuthController {
 
   getProfile = async (req: any, res: Response, next: NextFunction) => {
     try {
-      const userId = req.user.userId;
+      const userId = req.user._id || req.user.userId;
       const user = await this.authService.getUserById(userId);
 
       res.status(200).json({

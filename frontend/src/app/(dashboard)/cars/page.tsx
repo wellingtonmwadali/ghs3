@@ -77,6 +77,7 @@ export default function CarsPage() {
   const [filterStage, setFilterStage] = useState<string>('');
   const [selectedCar, setSelectedCar] = useState<Car | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'service' | 'payment' | 'photos' | 'inspection' | 'notes'>('details');
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [mechanics, setMechanics] = useState<Mechanic[]>([]);
@@ -411,13 +412,10 @@ export default function CarsPage() {
       const car = response.data.data;
       setSelectedCar(car);
       setActiveTab('details');
+      setIsViewDialogOpen(true);
       // Fetch inspections and inventory for the selected car
       fetchInspections(car._id);
       fetchInventory();
-      // Scroll to the details section
-      setTimeout(() => {
-        document.getElementById('car-details-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
     } catch (error) {
       console.error('Failed to fetch car details:', error);
     }
@@ -720,27 +718,32 @@ export default function CarsPage() {
         </CardContent>
       </Card>
 
-      {/* Car Details in Tabs - Replaces Dialog */}
-      {selectedCar && (
-        <Card id="car-details-section" className="mt-6">
-          <CardHeader>
+      {/* Car Details Dialog with Tabs */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>{selectedCar.vehicleModel} - {selectedCar.vehiclePlate}</CardTitle>
-                <CardDescription>Customer: {selectedCar.customerName}</CardDescription>
+                <DialogTitle>{selectedCar?.vehicleModel} - {selectedCar?.vehiclePlate}</DialogTitle>
+                <DialogDescription>Customer: {selectedCar?.customerName}</DialogDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setSelectedCar(null)}>
+                <Button variant="outline" size="sm" onClick={() => setIsViewDialogOpen(false)}>
                   Close
                 </Button>
-                <Button size="sm" onClick={() => handleEditCar(selectedCar)}>
+                <Button size="sm" onClick={() => {
+                  if (selectedCar) {
+                    setIsViewDialogOpen(false);
+                    handleEditCar(selectedCar);
+                  }
+                }}>
                   <Edit className="h-4 w-4 mr-2" />
                   Edit
                 </Button>
               </div>
             </div>
-          </CardHeader>
-          <CardContent>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden flex flex-col">
             {/* Tab Navigation */}
             <div className="border-b mb-6">
               <div className="flex gap-1 overflow-x-auto">
@@ -768,9 +771,9 @@ export default function CarsPage() {
             </div>
 
             {/* Tab Content */}
-            <div className="mt-4">
+            <div className="flex-1 overflow-y-auto mt-4 pr-2">
               {/* Details Tab */}
-              {activeTab === 'details' && (
+              {selectedCar && activeTab === 'details' && (
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-lg font-semibold mb-4">Vehicle Information</h3>
@@ -824,7 +827,7 @@ export default function CarsPage() {
               )}
 
               {/* Service Info Tab */}
-              {activeTab === 'service' && (
+              {selectedCar && activeTab === 'service' && (
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-lg font-semibold mb-4">Service Information</h3>
@@ -883,7 +886,7 @@ export default function CarsPage() {
               )}
 
               {/* Payment Tab */}
-              {activeTab === 'payment' && (
+              {selectedCar && activeTab === 'payment' && (
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-lg font-semibold mb-4">Payment Information</h3>
@@ -920,7 +923,7 @@ export default function CarsPage() {
               )}
 
               {/* Photos Tab */}
-              {activeTab === 'photos' && (
+              {selectedCar && activeTab === 'photos' && (
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-lg font-semibold mb-4">Before Photos</h3>
@@ -962,7 +965,7 @@ export default function CarsPage() {
               )}
 
               {/* Inspection Tab */}
-              {activeTab === 'inspection' && (
+              {selectedCar && activeTab === 'inspection' && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold">Vehicle Inspections</h3>
@@ -1269,7 +1272,7 @@ export default function CarsPage() {
               )}
 
               {/* Notes Tab */}
-              {activeTab === 'notes' && (
+              {selectedCar && activeTab === 'notes' && (
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-lg font-semibold mb-4">Damage Assessment / Issue</h3>
@@ -1288,9 +1291,9 @@ export default function CarsPage() {
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Car Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

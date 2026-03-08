@@ -6,6 +6,7 @@ const authService = new AuthService();
 
 export interface AuthRequest extends Request {
   user?: {
+    _id: string;
     userId: string;
     role: string;
   };

@@ -54,17 +54,39 @@ export const updateCarSchema = Joi.object({
 }).min(1);
 
 export const loginSchema = Joi.object({
-  email: Joi.string().email().required(),
-  password: Joi.string().min(6).required()
+  email: Joi.string().email().lowercase().trim().required(),
+  password: Joi.string().min(8).required()
 });
 
 export const registerSchema = Joi.object({
-  firstName: Joi.string().required(),
-  lastName: Joi.string().required(),
-  email: Joi.string().email().required(),
-  password: Joi.string().min(6).required(),
+  firstName: Joi.string().trim().min(2).max(50).required(),
+  lastName: Joi.string().trim().min(2).max(50).required(),
+  email: Joi.string().email().lowercase().trim().required(),
+  password: Joi.string()
+    .min(8)
+    .pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]'))
+    .required()
+    .messages({
+      'string.pattern.base': 'Password must contain uppercase, lowercase, number, and special character'
+    }),
   role: Joi.string().valid('owner', 'manager', 'mechanic', 'receptionist').required(),
   mechanicId: Joi.string().optional()
+});
+
+export const clockInSchema = Joi.object({
+  location: Joi.object({
+    latitude: Joi.number().min(-90).max(90).required(),
+    longitude: Joi.number().min(-180).max(180).required()
+  }).required(),
+  notes: Joi.string().max(500).optional()
+});
+
+export const clockOutSchema = Joi.object({
+  location: Joi.object({
+    latitude: Joi.number().min(-90).max(90).required(),
+    longitude: Joi.number().min(-180).max(180).required()
+  }).required(),
+  notes: Joi.string().max(500).optional()
 });
 
 export const createCustomerSchema = Joi.object({

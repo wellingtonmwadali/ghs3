@@ -14,11 +14,16 @@ export default function DashboardLayout({
   const { isAuthenticated } = useAuthStore();
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
-    }
+    // Small delay to allow zustand persist to rehydrate
+    const timer = setTimeout(() => {
+      if (!isAuthenticated) {
+        router.push('/login');
+      }
+    }, 100);
+    return () => clearTimeout(timer);
   }, [isAuthenticated, router]);
 
+  // Show loading or nothing while checking auth
   if (!isAuthenticated) {
     return null;
   }
