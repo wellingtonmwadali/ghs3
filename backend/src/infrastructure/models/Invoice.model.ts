@@ -35,10 +35,11 @@ const InvoiceSchema = new Schema<IInvoiceDocument>(
       amount: { type: Number, required: true },
       method: { 
         type: String, 
-        enum: ['cash', 'card', 'transfer', 'insurance'],
+        enum: ['cash', 'card', 'transfer', 'mpesa', 'insurance'],
         required: true 
       },
       reference: { type: String },
+      paymentPID: { type: String },
       paidAt: { type: Date, default: Date.now }
     }],
     

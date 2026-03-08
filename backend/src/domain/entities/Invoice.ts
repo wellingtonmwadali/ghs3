@@ -25,8 +25,9 @@ export interface IInvoice {
   
   payments: {
     amount: number;
-    method: 'cash' | 'card' | 'transfer' | 'insurance';
+    method: 'cash' | 'card' | 'transfer' | 'mpesa' | 'insurance';
     reference?: string;
+    paymentPID?: string;
     paidAt: Date;
   }[];
   

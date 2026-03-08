@@ -36,6 +36,35 @@ const SettingsSchema = new Schema<ISettingsDocument>(
     promotionalDeliveryMethod: {
       email: { type: Boolean, default: true },
       whatsapp: { type: Boolean, default: false }
+    },
+    companyInfo: {
+      name: { type: String },
+      email: { type: String },
+      phone: { type: String },
+      address: { type: String },
+      logo: { type: String }
+    },
+    emailConfig: {
+      enabled: { type: Boolean, default: false },
+      service: { type: String, default: 'gmail' },
+      host: { type: String },
+      port: { type: Number },
+      secure: { type: Boolean, default: true },
+      user: { type: String },
+      password: { type: String }
+    },
+    notifications: {
+      lowInventoryAlert: { type: Boolean, default: true },
+      invoiceCreated: { type: Boolean, default: true },
+      paymentReceived: { type: Boolean, default: true },
+      emailEnabled: { type: Boolean, default: true },
+      whatsappEnabled: { type: Boolean, default: false }
+    },
+    rolePermissions: {
+      owner: [{ type: String }],
+      manager: [{ type: String }],
+      receptionist: [{ type: String }],
+      mechanic: [{ type: String }]
     }
   },
   {

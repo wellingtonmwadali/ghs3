@@ -112,8 +112,9 @@ export const createInvoiceSchema = Joi.object({
 
 export const addPaymentSchema = Joi.object({
   amount: Joi.number().min(0).required(),
-  method: Joi.string().valid('cash', 'card', 'transfer', 'insurance').required(),
-  reference: Joi.string().optional()
+  method: Joi.string().valid('cash', 'card', 'transfer', 'mpesa', 'insurance').required(),
+  reference: Joi.string().optional(),
+  paymentPID: Joi.string().optional()
 });
 
 export const createBookingSchema = Joi.object({

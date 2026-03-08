@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import api from '@/lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -76,7 +76,7 @@ export default function CarsPage() {
   const [loading, setLoading] = useState(true);
   const [filterStage, setFilterStage] = useState<string>('');
   const [selectedCar, setSelectedCar] = useState<Car | null>(null);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'service' | 'payment' | 'photos' | 'inspection' | 'notes'>('details');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [mechanics, setMechanics] = useState<Mechanic[]>([]);
@@ -88,6 +88,14 @@ export default function CarsPage() {
   const [isNewCustomer, setIsNewCustomer] = useState(true);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [viewMode, setViewMode] = useState<'pending' | 'history'>('pending');
+  const [inspections, setInspections] = useState<any[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [showInspectionForm, setShowInspectionForm] = useState(false);
+  const [inspectionFormData, setInspectionFormData] = useState({
+    requiredParts: [] as Array<{ inventoryId: string; partName: string; quantity: number; unitPrice: number }>,
+    requiredServices: [] as Array<{ name: string; description: string; price: number }>,
+    additionalNotes: ''
+  });
   const [editFormData, setEditFormData] = useState({
     vehicleModel: '',
     vehiclePlate: '',
@@ -127,7 +135,7 @@ export default function CarsPage() {
     fetchMechanics();
     fetchSettings();
     fetchCustomers();
-  }, [filterStage]);
+  }, [filterStage, viewMode]);
 
   const fetchCustomers = async () => {
     try {
@@ -161,6 +169,124 @@ export default function CarsPage() {
     } catch (error) {
       console.error('Failed to fetch mechanics:', error);
     }
+  };
+
+  const fetchInspections = async (vehicleId: string) => {
+    try {
+      const response = await api.get(`/inspections?vehicleId=${vehicleId}`);
+      setInspections(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to fetch inspections:', error);
+    }
+  };
+
+  const fetchInventory = async () => {
+    try {
+      const response = await api.get('/inventory');
+      setInventoryItems(response.data.data.inventory || []);
+    } catch (error) {
+      console.error('Failed to fetch inventory:', error);
+    }
+  };
+
+  const handleCreateInspection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCar) return;
+
+    try {
+      await api.post('/inspections', {
+        vehicleId: selectedCar._id,
+        customerId: selectedCar.customerId,
+        mechanicId: selectedCar.assignedMechanicId,
+        bookingId: selectedCar._id, // Using car ID as booking ID for now
+        requiredParts: inspectionFormData.requiredParts,
+        requiredServices: inspectionFormData.requiredServices,
+        additionalNotes: inspectionFormData.additionalNotes
+      });
+      toast.success('Inspection created successfully!');
+      setShowInspectionForm(false);
+      setInspectionFormData({
+        requiredParts: [],
+        requiredServices: [],
+        additionalNotes: ''
+      });
+      fetchInspections(selectedCar._id);
+    } catch (error: any) {
+      console.error('Failed to create inspection:', error);
+      toast.error(error.response?.data?.message || 'Failed to create inspection');
+    }
+  };
+
+  const handleApproveInspection = async (inspectionId: string) => {
+    try {
+      await api.post(`/inspections/${inspectionId}/approve`);
+      toast.success('Inspection approved successfully!');
+      if (selectedCar) fetchInspections(selectedCar._id);
+    } catch (error: any) {
+      console.error('Failed to approve inspection:', error);
+      toast.error(error.response?.data?.message || 'Failed to approve inspection');
+    }
+  };
+
+  const handleRejectInspection = async (inspectionId: string, reason: string) => {
+    try {
+      await api.post(`/inspections/${inspectionId}/reject`, { rejectionReason: reason });
+      toast.success('Inspection rejected');
+      if (selectedCar) fetchInspections(selectedCar._id);
+    } catch (error: any) {
+      console.error('Failed to reject inspection:', error);
+      toast.error(error.response?.data?.message || 'Failed to reject inspection');
+    }
+  };
+
+  const addPartToInspection = (part: any) => {
+    const existingPart = inspectionFormData.requiredParts.find(p => p.inventoryId === part._id);
+    if (existingPart) {
+      toast.error('Part already added');
+      return;
+    }
+    setInspectionFormData({
+      ...inspectionFormData,
+      requiredParts: [
+        ...inspectionFormData.requiredParts,
+        {
+          inventoryId: part._id,
+          partName: part.name,
+          quantity: 1,
+          unitPrice: part.unitPrice
+        }
+      ]
+    });
+  };
+
+  const removePartFromInspection = (index: number) => {
+    setInspectionFormData({
+      ...inspectionFormData,
+      requiredParts: inspectionFormData.requiredParts.filter((_, i) => i !== index)
+    });
+  };
+
+  const addServiceToInspection = () => {
+    setInspectionFormData({
+      ...inspectionFormData,
+      requiredServices: [
+        ...inspectionFormData.requiredServices,
+        { name: '', description: '', price: 0 }
+      ]
+    });
+  };
+
+  const updateServiceInInspection = (index: number, field: string, value: any) => {
+    const updatedServices = [...inspectionFormData.requiredServices];
+    updatedServices[index] = { ...updatedServices[index], [field]: value };
+    setInspectionFormData({ ...inspectionFormData, requiredServices: updatedServices });
+  };
+
+  const removeServiceFromInspection = (index: number) => {
+    setInspectionFormData({
+      ...inspectionFormData,
+      requiredServices: inspectionFormData.requiredServices.filter((_, i) => i !== index)
+    });
   };
 
   // Image compression and upload functions
@@ -241,9 +367,26 @@ export default function CarsPage() {
 
   const fetchCars = async () => {
     try {
-      const params = filterStage ? { stage: filterStage } : {};
+      let params: any = {};
+      
+      if (filterStage) {
+        // If a specific stage is selected, filter by that stage
+        params.stage = filterStage;
+      } else if (viewMode === 'pending') {
+        // In pending mode with no specific stage, exclude completed cars
+        // We'll filter on the frontend since the API doesn't support "not equal" easily
+        params = {};
+      }
+      
       const response = await api.get('/cars', { params });
-      setCars(response.data.data.cars);
+      const allCars = response.data.data.cars;
+      
+      // Filter out completed cars when in pending mode with no specific stage filter
+      if (viewMode === 'pending' && !filterStage) {
+        setCars(allCars.filter((car: any) => car.stage !== 'completed'));
+      } else {
+        setCars(allCars);
+      }
     } catch (error) {
       console.error('Failed to fetch cars:', error);
     } finally {
@@ -265,8 +408,16 @@ export default function CarsPage() {
   const handleViewCar = async (carId: string) => {
     try {
       const response = await api.get(`/cars/${carId}`);
-      setSelectedCar(response.data.data);
-      setIsViewDialogOpen(true);
+      const car = response.data.data;
+      setSelectedCar(car);
+      setActiveTab('details');
+      // Fetch inspections and inventory for the selected car
+      fetchInspections(car._id);
+      fetchInventory();
+      // Scroll to the details section
+      setTimeout(() => {
+        document.getElementById('car-details-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     } catch (error) {
       console.error('Failed to fetch car details:', error);
     }
@@ -323,7 +474,7 @@ export default function CarsPage() {
       );
       setIsEditDialogOpen(false);
       fetchCars();
-      if (isViewDialogOpen) {
+      if (selectedCar) {
         handleViewCar(selectedCar._id);
       }
     } catch (error) {
@@ -569,227 +720,577 @@ export default function CarsPage() {
         </CardContent>
       </Card>
 
-      {/* View Car Details Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+      {/* Car Details in Tabs - Replaces Dialog */}
+      {selectedCar && (
+        <Card id="car-details-section" className="mt-6">
+          <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <DialogTitle>Car Details</DialogTitle>
-                <DialogDescription>Complete information about this vehicle</DialogDescription>
+                <CardTitle>{selectedCar.vehicleModel} - {selectedCar.vehiclePlate}</CardTitle>
+                <CardDescription>Customer: {selectedCar.customerName}</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+                <Button variant="outline" size="sm" onClick={() => setSelectedCar(null)}>
                   Close
                 </Button>
-                <Button onClick={() => {
-                  if (selectedCar) {
-                    setIsViewDialogOpen(false);
-                    handleEditCar(selectedCar);
-                  }
-                }}>
+                <Button size="sm" onClick={() => handleEditCar(selectedCar)}>
                   <Edit className="h-4 w-4 mr-2" />
                   Edit
                 </Button>
               </div>
             </div>
-          </DialogHeader>
-          {selectedCar && (
-            <div className="space-y-6">
-              {/* Vehicle Information */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Vehicle Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-600">Vehicle Model</Label>
-                    <p className="font-medium">{selectedCar.vehicleModel}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">License Plate</Label>
-                    <p className="font-medium font-mono">{selectedCar.vehiclePlate}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Year</Label>
-                    <p className="font-medium">{selectedCar.vehicleYear}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Color</Label>
-                    <p className="font-medium">{selectedCar.vehicleColor}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Customer</Label>
-                    <p className="font-medium">{selectedCar.customerName}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Days in Garage</Label>
-                    <p className="font-medium">{selectedCar.daysInGarage} days</p>
-                  </div>
-                </div>
+          </CardHeader>
+          <CardContent>
+            {/* Tab Navigation */}
+            <div className="border-b mb-6">
+              <div className="flex gap-1 overflow-x-auto">
+                {[
+                  { id: 'details', label: 'Vehicle Details' },
+                  { id: 'service', label: 'Service Info' },
+                  { id: 'payment', label: 'Payment' },
+                  { id: 'photos', label: 'Photos' },
+                  { id: 'inspection', label: 'Inspection' },
+                  { id: 'notes', label: 'Notes' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === tab.id
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              {/* Service Information */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Service Information</h3>
-                <div className="grid grid-cols-2 gap-4">
+            {/* Tab Content */}
+            <div className="mt-4">
+              {/* Details Tab */}
+              {activeTab === 'details' && (
+                <div className="space-y-6">
                   <div>
-                    <Label className="text-gray-600">Service Type</Label>
-                    <p className="font-medium capitalize">{selectedCar.serviceType.replace('_', ' ')}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Current Stage</Label>
-                    <span className={`px-2 py-1 rounded text-xs ${getStageColor(selectedCar.stage)}`}>
-                      {getStageLabel(selectedCar.stage)}
-                    </span>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Progress</Label>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 bg-gray-200 rounded">
-                        <div 
-                          className="h-full bg-blue-500 rounded" 
-                          style={{ width: `${selectedCar.statusProgress}%` }}
-                        />
+                    <h3 className="text-lg font-semibold mb-4">Vehicle Information</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label className="text-gray-600">Vehicle Model</Label>
+                        <p className="font-medium">{selectedCar.vehicleModel}</p>
                       </div>
-                      <span className="text-sm font-medium">{selectedCar.statusProgress}%</span>
+                      <div>
+                        <Label className="text-gray-600">License Plate</Label>
+                        <p className="font-medium font-mono">{selectedCar.vehiclePlate}</p>
+                      </div>
+                      <div>
+                        <Label className="text-gray-600">Year</Label>
+                        <p className="font-medium">{selectedCar.vehicleYear}</p>
+                      </div>
+                      <div>
+                        <Label className="text-gray-600">Color</Label>
+                        <p className="font-medium">{selectedCar.vehicleColor}</p>
+                      </div>
+                      <div>
+                        <Label className="text-gray-600">Customer</Label>
+                        <p className="font-medium">{selectedCar.customerName}</p>
+                      </div>
+                      <div>
+                        <Label className="text-gray-600">Days in Garage</Label>
+                        <p className="font-medium">{selectedCar.daysInGarage} days</p>
+                      </div>
                     </div>
                   </div>
                   <div>
-                    <Label className="text-gray-600">Assigned Mechanic</Label>
-                    <p className="font-medium">{selectedCar.assignedMechanicName || '—'}</p>
-                  </div>
-                </div>
-                {selectedCar.services && selectedCar.services.length > 0 && (
-                  <div className="mt-3">
-                    <Label className="text-gray-600">Services</Label>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {selectedCar.services.map((service, idx) => (
-                        <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
-                          {service}
-                        </span>
-                      ))}
+                    <h3 className="text-lg font-semibold mb-4">Timeline</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label className="text-gray-600">Check-in Date</Label>
+                        <p className="font-medium">{formatDate(selectedCar.checkInDate)}</p>
+                      </div>
+                      <div>
+                        <Label className="text-gray-600">Expected Completion</Label>
+                        <p className="font-medium">{formatDate(selectedCar.expectedCompletionDate)}</p>
+                      </div>
+                      {selectedCar.completionDate && (
+                        <div>
+                          <Label className="text-gray-600">Actual Completion</Label>
+                          <p className="font-medium">{formatDate(selectedCar.completionDate)}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* Issue/Diagnosis */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Damage Assessment / Issue</h3>
-                <div className="p-3 bg-gray-50 rounded border">
-                  <p className="text-sm">{selectedCar.damageAssessment || 'No damage assessment recorded yet'}</p>
-                </div>
-              </div>
-
-              {/* Parts Required */}
-              {selectedCar.partsRequired && selectedCar.partsRequired.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Parts Required</h3>
-                  <ul className="list-disc list-inside space-y-1">
-                    {selectedCar.partsRequired.map((part, idx) => (
-                      <li key={idx} className="text-sm">{part}</li>
-                    ))}
-                  </ul>
                 </div>
               )}
 
-              {/* Payment Information */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Payment Information</h3>
-                <div className="grid grid-cols-2 gap-4">
+              {/* Service Info Tab */}
+              {activeTab === 'service' && (
+                <div className="space-y-6">
                   <div>
-                    <Label className="text-gray-600">Estimated Cost</Label>
-                    <p className="font-medium">{formatCurrency(selectedCar.estimatedCost)}</p>
+                    <h3 className="text-lg font-semibold mb-4">Service Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-gray-600">Service Type</Label>
+                        <p className="font-medium capitalize">{selectedCar.serviceType.replace('_', ' ')}</p>
+                      </div>
+                      <div>
+                        <Label className="text-gray-600">Current Stage</Label>
+                        <span className={`px-2 py-1 rounded text-xs ${getStageColor(selectedCar.stage)}`}>
+                          {getStageLabel(selectedCar.stage)}
+                        </span>
+                      </div>
+                      <div>
+                        <Label className="text-gray-600">Assigned Mechanic</Label>
+                        <p className="font-medium">{selectedCar.assignedMechanicName || '—'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-gray-600">Progress</Label>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-gray-200 rounded">
+                            <div 
+                              className="h-full bg-blue-500 rounded" 
+                              style={{ width: `${selectedCar.statusProgress}%` }}
+                            />
+                          </div>
+                          <span className="text-sm font-medium">{selectedCar.statusProgress}%</span>
+                        </div>
+                      </div>
+                    </div>
+                    {selectedCar.services && selectedCar.services.length > 0 && (
+                      <div className="mt-4">
+                        <Label className="text-gray-600">Services</Label>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {selectedCar.services.map((service, idx) => (
+                            <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                              {service}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <Label className="text-gray-600">Amount Paid</Label>
-                    <p className="font-medium">{formatCurrency(selectedCar.paidAmount)}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Balance</Label>
-                    <p className="font-medium text-red-600">
-                      {formatCurrency(selectedCar.estimatedCost - selectedCar.paidAmount)}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Payment Status</Label>
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      selectedCar.paymentStatus === 'paid'
-                        ? 'bg-green-100 text-green-800'
-                        : selectedCar.paymentStatus === 'partial'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {selectedCar.paymentStatus}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Dates */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Timeline</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-600">Check-in Date</Label>
-                    <p className="font-medium">{formatDate(selectedCar.checkInDate)}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Expected Completion</Label>
-                    <p className="font-medium">{formatDate(selectedCar.expectedCompletionDate)}</p>
-                  </div>
-                  {selectedCar.completionDate && (
+                  {selectedCar.partsRequired && selectedCar.partsRequired.length > 0 && (
                     <div>
-                      <Label className="text-gray-600">Actual Completion</Label>
-                      <p className="font-medium">{formatDate(selectedCar.completionDate)}</p>
+                      <h3 className="text-lg font-semibold mb-4">Parts Required</h3>
+                      <ul className="list-disc list-inside space-y-2">
+                        {selectedCar.partsRequired.map((part, idx) => (
+                          <li key={idx} className="text-sm">{part}</li>
+                        ))}
+                      </ul>
                     </div>
                   )}
                 </div>
-              </div>
+              )}
 
-              {/* Photos */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Photos</h3>
-                <div className="grid grid-cols-2 gap-4">
+              {/* Payment Tab */}
+              {activeTab === 'payment' && (
+                <div className="space-y-6">
                   <div>
-                    <Label className="text-gray-600">Before Photos</Label>
-                    {selectedCar.beforePhotos && selectedCar.beforePhotos.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        {selectedCar.beforePhotos.map((photo, idx) => (
-                          <img key={idx} src={photo} alt={`Before ${idx + 1}`} className="w-full h-32 object-cover rounded border" />
-                        ))}
+                    <h3 className="text-lg font-semibold mb-4">Payment Information</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <Label className="text-gray-600 text-sm">Estimated Cost</Label>
+                        <p className="font-bold text-xl mt-1">{formatCurrency(selectedCar.estimatedCost)}</p>
                       </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 mt-1">No photos uploaded</p>
-                    )}
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">After Photos</Label>
-                    {selectedCar.afterPhotos && selectedCar.afterPhotos.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        {selectedCar.afterPhotos.map((photo, idx) => (
-                          <img key={idx} src={photo} alt={`After ${idx + 1}`} className="w-full h-32 object-cover rounded border" />
-                        ))}
+                      <div className="bg-green-50 p-4 rounded-lg">
+                        <Label className="text-gray-600 text-sm">Amount Paid</Label>
+                        <p className="font-bold text-xl mt-1 text-green-600">{formatCurrency(selectedCar.paidAmount)}</p>
                       </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 mt-1">No photos uploaded</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Notes */}
-              {selectedCar.notes && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Additional Notes</h3>
-                  <div className="p-3 bg-gray-50 rounded border">
-                    <p className="text-sm">{selectedCar.notes}</p>
+                      <div className="bg-red-50 p-4 rounded-lg">
+                        <Label className="text-gray-600 text-sm">Balance</Label>
+                        <p className="font-bold text-xl mt-1 text-red-600">
+                          {formatCurrency(selectedCar.estimatedCost - selectedCar.paidAmount)}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <Label className="text-gray-600 text-sm">Payment Status</Label>
+                        <span className={`inline-block px-3 py-1 rounded mt-2 text-sm font-medium ${
+                          selectedCar.paymentStatus === 'paid'
+                            ? 'bg-green-100 text-green-800'
+                            : selectedCar.paymentStatus === 'partial'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {selectedCar.paymentStatus}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
+
+              {/* Photos Tab */}
+              {activeTab === 'photos' && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Before Photos</h3>
+                    {selectedCar.beforePhotos && selectedCar.beforePhotos.length > 0 ? (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {selectedCar.beforePhotos.map((photo, idx) => (
+                          <img 
+                            key={idx} 
+                            src={photo} 
+                            alt={`Before ${idx + 1}`} 
+                            className="w-full h-48 object-cover rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer" 
+                            onClick={() => window.open(photo, '_blank')}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No before photos uploaded</p>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">After Photos</h3>
+                    {selectedCar.afterPhotos && selectedCar.afterPhotos.length > 0 ? (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {selectedCar.afterPhotos.map((photo, idx) => (
+                          <img 
+                            key={idx} 
+                            src={photo} 
+                            alt={`After ${idx + 1}`} 
+                            className="w-full h-48 object-cover rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer" 
+                            onClick={() => window.open(photo, '_blank')}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No after photos uploaded</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Inspection Tab */}
+              {activeTab === 'inspection' && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Vehicle Inspections</h3>
+                    {!showInspectionForm && (
+                      <Button size="sm" onClick={() => setShowInspectionForm(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Inspection
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Create Inspection Form */}
+                  {showInspectionForm && (
+                    <Card className="bg-gray-50">
+                      <CardHeader>
+                        <CardTitle className="text-base">New Inspection</CardTitle>
+                        <CardDescription>Select required parts and services for this vehicle</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <form onSubmit={handleCreateInspection} className="space-y-4">
+                          {/* Required Parts */}
+                          <div>
+                            <Label className="text-sm font-semibold mb-2 block">Required Parts</Label>
+                            <div className="space-y-2">
+                              {/* Part Selection */}
+                              <div className="flex gap-2">
+                                <select
+                                  className="flex-1 border rounded-md px-3 py-2 text-sm"
+                                  onChange={(e) => {
+                                    const part = inventoryItems.find(item => item._id === e.target.value);
+                                    if (part) addPartToInspection(part);
+                                    e.target.value = '';
+                                  }}
+                                >
+                                  <option value="">Select part from inventory...</option>
+                                  {inventoryItems.map(item => (
+                                    <option key={item._id} value={item._id}>
+                                      {item.name} - {formatCurrency(item.unitPrice)} (Stock: {item.quantity})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Selected Parts List */}
+                              {inspectionFormData.requiredParts.length > 0 ? (
+                                <div className="space-y-2 mt-3">
+                                  {inspectionFormData.requiredParts.map((part, idx) => (
+                                    <div key={idx} className="flex items-center gap-2 bg-white p-3 rounded border">
+                                      <div className="flex-1">
+                                        <p className="font-medium text-sm">{part.partName}</p>
+                                        <p className="text-xs text-gray-500">Unit Price: {formatCurrency(part.unitPrice)}</p>
+                                      </div>
+                                      <Input
+                                        type="number"
+                                        min="1"
+                                        value={part.quantity}
+                                        onChange={(e) => {
+                                          const updatedParts = [...inspectionFormData.requiredParts];
+                                          updatedParts[idx].quantity = parseInt(e.target.value) || 1;
+                                          setInspectionFormData({ ...inspectionFormData, requiredParts: updatedParts });
+                                        }}
+                                        className="w-20"
+                                        placeholder="Qty"
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => removePartFromInspection(idx)}
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                  <div className="bg-blue-50 p-2 rounded text-sm">
+                                    <strong>Parts Total:</strong> {formatCurrency(
+                                      inspectionFormData.requiredParts.reduce((sum, part) => sum + (part.unitPrice * part.quantity), 0)
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">No parts selected</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Required Services */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <Label className="text-sm font-semibold">Required Services</Label>
+                              <Button type="button" size="sm" variant="outline" onClick={addServiceToInspection}>
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add Service
+                              </Button>
+                            </div>
+                            <div className="space-y-2">
+                              {inspectionFormData.requiredServices.length > 0 ? (
+                                <div className="space-y-2">
+                                  {inspectionFormData.requiredServices.map((service, idx) => (
+                                    <div key={idx} className="bg-white p-3 rounded border space-y-2">
+                                      <div className="flex gap-2">
+                                        <Input
+                                          placeholder="Service name"
+                                          value={service.name}
+                                          onChange={(e) => updateServiceInInspection(idx, 'name', e.target.value)}
+                                          className="flex-1"
+                                          required
+                                        />
+                                        <Input
+                                          type="number"
+                                          placeholder="Price"
+                                          value={service.price || ''}
+                                          onChange={(e) => updateServiceInInspection(idx, 'price', parseFloat(e.target.value) || 0)}
+                                          className="w-32"
+                                          required
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => removeServiceFromInspection(idx)}
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                      <Input
+                                        placeholder="Description"
+                                        value={service.description}
+                                        onChange={(e) => updateServiceInInspection(idx, 'description', e.target.value)}
+                                      />
+                                    </div>
+                                  ))}
+                                  <div className="bg-blue-50 p-2 rounded text-sm">
+                                    <strong>Services Total:</strong> {formatCurrency(
+                                      inspectionFormData.requiredServices.reduce((sum, service) => sum + service.price, 0)
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">No services added</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Additional Notes */}
+                          <div>
+                            <Label htmlFor="inspectionNotes" className="text-sm font-semibold">Additional Notes</Label>
+                            <textarea
+                              id="inspectionNotes"
+                              value={inspectionFormData.additionalNotes}
+                              onChange={(e) => setInspectionFormData({ ...inspectionFormData, additionalNotes: e.target.value })}
+                              className="w-full border rounded-md px-3 py-2 min-h-[80px] mt-2"
+                              placeholder="Any additional observations or recommendations..."
+                            />
+                          </div>
+
+                          {/* Estimated Total */}
+                          <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-lg">Estimated Total Cost:</span>
+                              <span className="text-2xl font-bold text-green-600">
+                                {formatCurrency(
+                                  inspectionFormData.requiredParts.reduce((sum, part) => sum + (part.unitPrice * part.quantity), 0) +
+                                  inspectionFormData.requiredServices.reduce((sum, service) => sum + service.price, 0)
+                                )}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Form Actions */}
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                setShowInspectionForm(false);
+                                setInspectionFormData({ requiredParts: [], requiredServices: [], additionalNotes: '' });
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button type="submit">Create Inspection</Button>
+                          </div>
+                        </form>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Existing Inspections List */}
+                  <div>
+                    <h4 className="font-semibold mb-3">Inspection History</h4>
+                    {inspections.length > 0 ? (
+                      <div className="space-y-3">
+                        {inspections.map((inspection: any) => (
+                          <Card key={inspection._id}>
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between mb-3">
+                                <div>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    inspection.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                    inspection.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                    inspection.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {inspection.status.toUpperCase()}
+                                  </span>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Created {formatDate(inspection.createdAt)}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-lg font-bold">{formatCurrency(inspection.estimatedCost)}</p>
+                                  <p className="text-xs text-gray-500">Estimated Cost</p>
+                                </div>
+                              </div>
+
+                              {/* Parts */}
+                              {inspection.requiredParts?.length > 0 && (
+                                <div className="mb-3">
+                                  <Label className="text-xs font-semibold text-gray-600">Required Parts:</Label>
+                                  <ul className="text-sm mt-1 space-y-1">
+                                    {inspection.requiredParts.map((part: any, idx: number) => (
+                                      <li key={idx} className="flex justify-between">
+                                        <span>{part.partName} x{part.quantity}</span>
+                                        <span className="font-medium">{formatCurrency(part.unitPrice * part.quantity)}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* Services */}
+                              {inspection.requiredServices?.length > 0 && (
+                                <div className="mb-3">
+                                  <Label className="text-xs font-semibold text-gray-600">Required Services:</Label>
+                                  <ul className="text-sm mt-1 space-y-1">
+                                    {inspection.requiredServices.map((service: any, idx: number) => (
+                                      <li key={idx} className="flex justify-between">
+                                        <span>{service.name}</span>
+                                        <span className="font-medium">{formatCurrency(service.price)}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* Notes */}
+                              {inspection.additionalNotes && (
+                                <div className="mb-3">
+                                  <Label className="text-xs font-semibold text-gray-600">Notes:</Label>
+                                  <p className="text-sm text-gray-700 mt-1">{inspection.additionalNotes}</p>
+                                </div>
+                              )}
+
+                              {/* Actions for pending inspections */}
+                              {inspection.status === 'pending' && (
+                                <div className="flex gap-2 mt-3 pt-3 border-t">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={() => {
+                                      const reason = prompt('Enter rejection reason:');
+                                      if (reason) handleRejectInspection(inspection._id, reason);
+                                    }}
+                                  >
+                                    Reject
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="flex-1"
+                                    onClick={() => handleApproveInspection(inspection._id)}
+                                  >
+                                    Approve
+                                  </Button>
+                                </div>
+                              )}
+
+                              {/* Rejection reason */}
+                              {inspection.rejectionReason && (
+                                <div className="mt-3 p-2 bg-red-50 rounded text-sm">
+                                  <strong>Rejection Reason:</strong> {inspection.rejectionReason}
+                                </div>
+                              )}
+
+                              {/* Invoice link */}
+                              {inspection.invoiceId && (
+                                <div className="mt-3 p-2 bg-green-50 rounded text-sm">
+                                  <strong>Invoice Generated:</strong> #{inspection.invoiceId}
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 bg-gray-50 rounded-lg border">
+                        <p className="text-gray-500">No inspections found for this vehicle</p>
+                        <p className="text-sm text-gray-400 mt-1">Create the first inspection using the button above</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes Tab */}
+              {activeTab === 'notes' && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Damage Assessment / Issue</h3>
+                    <div className="p-4 bg-gray-50 rounded-lg border">
+                      <p className="text-sm whitespace-pre-wrap">{selectedCar.damageAssessment || 'No damage assessment recorded yet'}</p>
+                    </div>
+                  </div>
+                  {selectedCar.notes && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Additional Notes</h3>
+                      <div className="p-4 bg-gray-50 rounded-lg border">
+                        <p className="text-sm whitespace-pre-wrap">{selectedCar.notes}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Edit Car Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

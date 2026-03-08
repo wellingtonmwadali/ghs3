@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Trash2, Save, Settings as SettingsIcon } from 'lucide-react';
+import { Plus, Trash2, Save, Settings as SettingsIcon, Upload, Building2 } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
@@ -41,6 +41,14 @@ interface Holiday {
   date: string;
 }
 
+interface CompanyInfo {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  logo?: string;
+}
+
 interface SettingsData {
   serviceTypes: ServiceType[];
   promotionalMessages: PromotionalMessage[];
@@ -51,6 +59,7 @@ interface SettingsData {
     email: boolean;
     whatsapp: boolean;
   };
+  companyInfo?: CompanyInfo;
 }
 
 export default function SettingsPage() {
@@ -64,14 +73,27 @@ export default function SettingsPage() {
     promotionalDeliveryMethod: {
       email: true,
       whatsapp: false
+    },
+    companyInfo: {
+      name: '',
+      email: '',
+      phone: '',
+      address: '',
+      logo: ''
     }
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'services' | 'promotions' | 'announcements' | 'holidays' | 'features'>('services');
+  const [activeTab, setActiveTab] = useState<'company' | 'services' | 'promotions' | 'announcements' | 'holidays' | 'features'>('company');
+  const [logoPreview, setLogoPreview] = useState<string>('');
 
   useEffect(() => {
     fetchSettings();
+    // Load logo from localStorage if exists
+    const savedLogo = localStorage.getItem('companyLogo');
+    if (savedLogo) {
+      setLogoPreview(savedLogo);
+    }
   }, []);
 
   const fetchSettings = async () => {
@@ -94,6 +116,13 @@ export default function SettingsPage() {
         promotionalDeliveryMethod: {
           email: true,
           whatsapp: false
+        },
+        companyInfo: {
+          name: 'GHS3 Garage',
+          email: 'info@ghs3.com',
+          phone: '+254 700 000 000',
+          address: 'Nairobi, Kenya',
+          logo: ''
         }
       });
     } finally {
@@ -254,7 +283,37 @@ export default function SettingsPage() {
     });
   };
 
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('Logo file size must be less than 2MB');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setLogoPreview(base64String);
+        setSettings({
+          ...settings,
+          companyInfo: {
+            ...settings.companyInfo!,
+            logo: base64String
+          }
+        });
+        // Save to localStorage for sidebar access
+        localStorage.setItem('companyLogo', base64String);
+        // Dispatch custom event to update sidebar in real-time
+        window.dispatchEvent(new CustomEvent('logoUpdated', { detail: { logo: base64String } }));
+        toast.success('Logo uploaded successfully!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const tabs = [
+    { id: 'company', label: 'Company Information', icon: Building2 },
     { id: 'services', label: 'Service Types', icon: SettingsIcon },
     { id: 'promotions', label: 'Promotional Messages', icon: SettingsIcon },
     { id: 'announcements', label: 'Announcements', icon: SettingsIcon },
@@ -301,6 +360,126 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
+
+      {/* Company Information Tab */}
+      {activeTab === 'company' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Company Information</CardTitle>
+            <CardDescription>
+              Configure your company details and logo. The logo will be displayed in the sidebar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Logo Upload Section */}
+              <div className="border-2 border-dashed rounded-lg p-6">
+                <div className="flex flex-col items-center gap-4">
+                  {(logoPreview || settings.companyInfo?.logo) && (
+                    <div className="relative w-32 h-32 border rounded-lg overflow-hidden bg-white">
+                      <img
+                        src={logoPreview || settings.companyInfo?.logo}
+                        alt="Company Logo"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  )}
+                  <div className="text-center">
+                    <Label htmlFor="logo-upload" className="cursor-pointer">
+                      <div className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                        <Upload className="h-4 w-4" />
+                        {logoPreview || settings.companyInfo?.logo ? 'Change Logo' : 'Upload Logo'}
+                      </div>
+                    </Label>
+                    <Input
+                      id="logo-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Recommended: Square image, max 2MB (PNG, JPG, SVG)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Company Details */}
+              <div className="grid gap-4">
+                <div>
+                  <Label htmlFor="company-name">Company Name</Label>
+                  <Input
+                    id="company-name"
+                    value={settings.companyInfo?.name || ''}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      companyInfo: {
+                        ...settings.companyInfo!,
+                        name: e.target.value
+                      }
+                    })}
+                    placeholder="Enter company name"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="company-email">Email Address</Label>
+                    <Input
+                      id="company-email"
+                      type="email"
+                      value={settings.companyInfo?.email || ''}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        companyInfo: {
+                          ...settings.companyInfo!,
+                          email: e.target.value
+                        }
+                      })}
+                      placeholder="info@company.com"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="company-phone">Phone Number</Label>
+                    <Input
+                      id="company-phone"
+                      type="tel"
+                      value={settings.companyInfo?.phone || ''}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        companyInfo: {
+                          ...settings.companyInfo!,
+                          phone: e.target.value
+                        }
+                      })}
+                      placeholder="+254 700 000 000"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="company-address">Physical Address</Label>
+                  <textarea
+                    id="company-address"
+                    value={settings.companyInfo?.address || ''}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      companyInfo: {
+                        ...settings.companyInfo!,
+                        address: e.target.value
+                      }
+                    })}
+                    className="w-full border rounded-md px-3 py-2 min-h-[80px]"
+                    placeholder="Enter your company address"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Service Types Tab */}
       {activeTab === 'services' && (

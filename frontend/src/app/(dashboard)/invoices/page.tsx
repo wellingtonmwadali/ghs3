@@ -5,6 +5,8 @@ import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/components/ui/toast';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import {
   Table,
   TableBody,
@@ -41,6 +43,13 @@ interface Invoice {
   paymentMethod?: string;
   issueDate: string;
   dueDate: string;
+  payments?: Array<{
+    amount: number;
+    method: string;
+    reference?: string;
+    paymentPID?: string;
+    paidAt: string;
+  }>;
 }
 
 export default function InvoicesPage() {
@@ -52,6 +61,13 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [paymentData, setPaymentData] = useState({
+    amount: '',
+    method: 'cash',
+    paymentPID: '',
+    reference: ''
+  });
 
   useEffect(() => {
     fetchInvoices();
@@ -102,6 +118,53 @@ export default function InvoicesPage() {
   const handlePrint = (invoice: Invoice) => {
     // Implement print functionality
     window.print();
+  };
+
+  const handleRecordPayment = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setPaymentData({
+      amount: invoice.balance.toString(),
+      method: 'cash',
+      paymentPID: '',
+      reference: ''
+    });
+    setIsPaymentDialogOpen(true);
+  };
+
+  const submitPayment = async () => {
+    if (!selectedInvoice) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const amount = parseFloat(paymentData.amount);
+      
+      if (isNaN(amount) || amount <= 0) {
+        toast.error('Please enter a valid payment amount');
+        return;
+      }
+      
+      if (amount > selectedInvoice.balance) {
+        toast.error('Payment amount cannot exceed balance');
+        return;
+      }
+
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/invoices/${selectedInvoice._id}/payment`,
+        {
+          amount,
+          method: paymentData.method,
+          paymentPID: paymentData.paymentPID || undefined,
+          reference: paymentData.reference || undefined
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success('Payment recorded successfully');
+      setIsPaymentDialogOpen(false);
+      fetchInvoices();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to record payment');
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -229,6 +292,11 @@ export default function InvoicesPage() {
                       <Button size="sm" variant="outline" onClick={() => handleView(invoice)}>
                         View
                       </Button>
+                      {invoice.paymentStatus !== 'paid' && (
+                        <Button size="sm" onClick={() => handleRecordPayment(invoice)}>
+                          Record Payment
+                        </Button>
+                      )}
                       <Button size="sm" variant="outline" onClick={() => handlePrint(invoice)}>
                         Print
                       </Button>
@@ -345,6 +413,120 @@ export default function InvoicesPage() {
             </Button>
             <Button onClick={() => selectedInvoice && handlePrint(selectedInvoice)}>
               Print Invoice
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record Payment Dialog */}
+      <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+          </DialogHeader>
+          {selectedInvoice && (
+            <div className="grid gap-4">
+              <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50 rounded-md">
+                <div>
+                  <Label className="text-xs text-gray-600">Invoice #</Label>
+                  <p className="font-medium">{selectedInvoice.invoiceNumber}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-600">Customer</Label>
+                  <p className="font-medium">{selectedInvoice.customerName}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-600">Total Amount</Label>
+                  <p className="font-medium">Ksh {selectedInvoice.total.toLocaleString()}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-600">Balance Due</Label>
+                  <p className="font-bold text-yellow-600">Ksh {selectedInvoice.balance.toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="payment-amount">Payment Amount *</Label>
+                <Input
+                  id="payment-amount"
+                  type="number"
+                  placeholder="Enter amount"
+                  value={paymentData.amount}
+                  onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                  step="0.01"
+                  min="0"
+                  max={selectedInvoice.balance}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="payment-method">Payment Method *</Label>
+                <select
+                  id="payment-method"
+                  value={paymentData.method}
+                  onChange={(e) => setPaymentData({ ...paymentData, method: e.target.value })}
+                  className="border rounded-md px-3 py-2"
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="transfer">Bank Transfer</option>
+                  <option value="mpesa">M-Pesa</option>
+                  <option value="insurance">Insurance</option>
+                </select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="payment-pid">Payment Transaction ID (PID)</Label>
+                <Input
+                  id="payment-pid"
+                  type="text"
+                  placeholder="e.g., M-Pesa code, transaction reference"
+                  value={paymentData.paymentPID}
+                  onChange={(e) => setPaymentData({ ...paymentData, paymentPID: e.target.value })}
+                />
+                <p className="text-xs text-gray-500">Enter M-Pesa code, bank reference, or transaction ID</p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="payment-reference">Additional Reference/Notes</Label>
+                <Input
+                  id="payment-reference"
+                  type="text"
+                  placeholder="Optional notes"
+                  value={paymentData.reference}
+                  onChange={(e) => setPaymentData({ ...paymentData, reference: e.target.value })}
+                />
+              </div>
+
+              {selectedInvoice.payments && selectedInvoice.payments.length > 0 && (
+                <div className="border-t pt-3">
+                  <Label className="text-sm font-medium mb-2 block">Payment History</Label>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {selectedInvoice.payments.map((payment, idx) => (
+                      <div key={idx} className="text-xs p-2 bg-gray-50 rounded">
+                        <div className="flex justify-between">
+                          <span className="font-medium">Ksh {payment.amount.toLocaleString()}</span>
+                          <span className="text-gray-600">{new Date(payment.paidAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex justify-between mt-1">
+                          <span className="text-gray-600 capitalize">{payment.method}</span>
+                          {payment.paymentPID && (
+                            <span className="text-blue-600 font-mono">{payment.paymentPID}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitPayment}>
+              Record Payment
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -22,6 +22,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/toast';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface InventoryItem {
   _id: string;

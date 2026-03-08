@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
@@ -12,7 +13,8 @@ import {
   Wrench, 
   Calendar,
   Settings,
-  LogOut 
+  LogOut,
+  BarChart3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -24,17 +26,59 @@ const navigation = [
   { name: 'Inventory', href: '/inventory', icon: Package },
   { name: 'Team', href: '/mechanics', icon: Wrench },
   { name: 'Bookings', href: '/bookings', icon: Calendar },
+  { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
+  const [companyLogo, setCompanyLogo] = useState<string>('');
+
+  useEffect(() => {
+    // Load logo from localStorage
+    const savedLogo = localStorage.getItem('companyLogo');
+    if (savedLogo) {
+      setCompanyLogo(savedLogo);
+    }
+
+    // Listen for storage changes to update logo in real-time
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'companyLogo') {
+        setCompanyLogo(e.newValue || '');
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom event for same-tab updates
+    const handleLogoUpdate = ((e: CustomEvent) => {
+      setCompanyLogo(e.detail.logo);
+    }) as EventListener;
+    
+    window.addEventListener('logoUpdated', handleLogoUpdate);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('logoUpdated', handleLogoUpdate);
+    };
+  }, []);
 
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-background">
       <div className="flex h-16 items-center border-b px-6">
-        <h1 className="text-xl font-semibold tracking-tight">GHS3</h1>
+        {companyLogo ? (
+          <div className="flex items-center gap-3 w-full">
+            <img 
+              src={companyLogo} 
+              alt="Company Logo" 
+              className="h-10 w-10 object-contain"
+            />
+            <h1 className="text-xl font-semibold tracking-tight">GHS3</h1>
+          </div>
+        ) : (
+          <h1 className="text-xl font-semibold tracking-tight">GHS3</h1>
+        )}
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">

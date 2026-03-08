@@ -33,6 +33,35 @@ export interface ISettings {
     email: boolean;
     whatsapp: boolean;
   };
+  companyInfo?: {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    logo?: string;
+  };
+  emailConfig?: {
+    enabled: boolean;
+    service: string; // 'gmail', 'smtp', etc.
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    user: string;
+    password: string;
+  };
+  notifications?: {
+    lowInventoryAlert: boolean;
+    invoiceCreated: boolean;
+    paymentReceived: boolean;
+    emailEnabled: boolean;
+    whatsappEnabled: boolean;
+  };
+  rolePermissions?: {
+    owner: string[];
+    manager: string[];
+    receptionist: string[];
+    mechanic: string[];
+  };
   createdAt?: Date;
   updatedAt?: Date;
 }

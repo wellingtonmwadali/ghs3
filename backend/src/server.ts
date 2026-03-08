@@ -10,6 +10,7 @@ import rateLimit from 'express-rate-limit';
 
 import { connectDatabase } from './infrastructure/database/connection';
 import { errorHandler, notFound } from './presentation/middlewares/error.middleware';
+import { CronJobService } from './infrastructure/services/CronJob.service';
 
 // Routes
 import authRoutes from './presentation/routes/auth.routes';
@@ -20,6 +21,8 @@ import mechanicRoutes from './presentation/routes/mechanic.routes';
 import inventoryRoutes from './presentation/routes/inventory.routes';
 import settingsRoutes from './presentation/routes/settings.routes';
 import bookingRoutes from './presentation/routes/booking.routes';
+import inspectionRoutes from './presentation/routes/inspection.routes';
+import attendanceRoutes from './presentation/routes/attendance.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
@@ -43,7 +46,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Compression
-app.use(compression());
+app.use(compression() as any);
 
 // Logging
 if (process.env.NODE_ENV === 'development') {
@@ -67,6 +70,8 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/mechanics', mechanicRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/inspections', inspectionRoutes);
+app.use('/api/attendance', attendanceRoutes);
 app.use('/api/settings', settingsRoutes);
 
 // Error handling
@@ -77,6 +82,10 @@ app.use(errorHandler);
 const startServer = async () => {
   try {
     await connectDatabase();
+
+    // Initialize cron jobs
+    const cronJobService = new CronJobService();
+    await cronJobService.initialize();
 
     app.listen(PORT, () => {
       console.log(`\n🚀 Server running on port ${PORT}`);
