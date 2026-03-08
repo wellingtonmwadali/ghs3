@@ -77,6 +77,8 @@ export default function CarsPage() {
   const [filterStage, setFilterStage] = useState<string>('');
   const [selectedCar, setSelectedCar] = useState<Car | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'service' | 'payment' | 'photos' | 'inspection' | 'notes'>('details');
+  const [editTab, setEditTab] = useState<'details' | 'service' | 'payment' | 'photos' | 'inspection' | 'notes'>('details');
+  const [addTab, setAddTab] = useState<'customer' | 'details' | 'service' | 'payment' | 'photos' | 'notes'>('customer');
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -184,9 +186,13 @@ export default function CarsPage() {
   const fetchInventory = async () => {
     try {
       const response = await api.get('/inventory');
-      setInventoryItems(response.data.data.inventory || []);
-    } catch (error) {
+      const items = response.data.data.inventory || [];
+      console.log('Fetched inventory items:', items.length);
+      setInventoryItems(items);
+    } catch (error: any) {
       console.error('Failed to fetch inventory:', error);
+      console.error('Error details:', error.response?.data);
+      toast.error('Failed to load inventory items');
     }
   };
 
@@ -237,6 +243,35 @@ export default function CarsPage() {
     } catch (error: any) {
       console.error('Failed to reject inspection:', error);
       toast.error(error.response?.data?.message || 'Failed to reject inspection');
+    }
+  };
+
+  const handleGenerateInvoice = async () => {
+    if (!selectedCar) return;
+    
+    try {
+      const response = await api.post('/invoices', {
+        customerId: selectedCar.customerId,
+        vehicleId: selectedCar._id,
+        items: [
+          {
+            description: `${selectedCar.serviceType.replace('_', ' ')} - ${selectedCar.vehicleModel} (${selectedCar.vehiclePlate})`,
+            quantity: 1,
+            unitPrice: selectedCar.estimatedCost,
+            total: selectedCar.estimatedCost
+          }
+        ],
+        subtotal: selectedCar.estimatedCost,
+        tax: 0,
+        total: selectedCar.estimatedCost,
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        notes: selectedCar.notes || ''
+      });
+      toast.success('Invoice generated successfully!');
+      console.log('Invoice created:', response.data);
+    } catch (error: any) {
+      console.error('Failed to generate invoice:', error);
+      toast.error(error.response?.data?.message || 'Failed to generate invoice');
     }
   };
 
@@ -414,14 +449,16 @@ export default function CarsPage() {
       setActiveTab('details');
       setIsViewDialogOpen(true);
       // Fetch inspections and inventory for the selected car
-      fetchInspections(car._id);
-      fetchInventory();
-    } catch (error) {
+      await fetchInspections(car._id);
+      await fetchInventory();
+      console.log('Car details dialog opened with inventory:', inventoryItems.length);
+    } catch (error: any) {
       console.error('Failed to fetch car details:', error);
+      toast.error(error.response?.data?.message || 'Failed to load car details');
     }
   };
 
-  const handleEditCar = (car: Car) => {
+  const handleEditCar = async (car: Car) => {
     setSelectedCar(car);
     setBeforePhotos(car.beforePhotos || []);
     setAfterPhotos(car.afterPhotos || []);
@@ -440,7 +477,11 @@ export default function CarsPage() {
       notes: car.notes || '',
       expectedCompletionDate: car.expectedCompletionDate ? new Date(car.expectedCompletionDate).toISOString().split('T')[0] : ''
     });
+    setEditTab('details');
     setIsEditDialogOpen(true);
+    // Fetch inspections and inventory for editing
+    await fetchInspections(car._id);
+    await fetchInventory();
   };
 
   const handleUpdateCar = async (e: React.FormEvent) => {
@@ -748,11 +789,11 @@ export default function CarsPage() {
             <div className="border-b mb-6">
               <div className="flex gap-1 overflow-x-auto">
                 {[
-                  { id: 'details', label: 'Vehicle Details' },
+                  { id: 'details', label: 'Vehicle Info' },
                   { id: 'service', label: 'Service Info' },
-                  { id: 'payment', label: 'Payment' },
                   { id: 'photos', label: 'Photos' },
                   { id: 'inspection', label: 'Inspection' },
+                  { id: 'payment', label: 'Payment' },
                   { id: 'notes', label: 'Notes' },
                 ].map((tab) => (
                   <button
@@ -888,8 +929,14 @@ export default function CarsPage() {
               {/* Payment Tab */}
               {selectedCar && activeTab === 'payment' && (
                 <div className="space-y-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Payment Information</h3>
+                    <Button onClick={handleGenerateInvoice} size="sm">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Generate Invoice
+                    </Button>
+                  </div>
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Payment Information</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                       <div className="bg-blue-50 p-4 rounded-lg">
                         <Label className="text-gray-600 text-sm">Estimated Cost</Label>
@@ -1297,277 +1344,405 @@ export default function CarsPage() {
 
       {/* Edit Car Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit Car Details</DialogTitle>
             <DialogDescription>Update vehicle information, service details, and payment status</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleUpdateCar}>
-            <div className="space-y-6">
-              {/* Vehicle Info */}
-              <div>
-                <h3 className="text-md font-semibold mb-3">Vehicle Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="vehicleModel">Vehicle Model</Label>
-                    <Input
-                      id="vehicleModel"
-                      value={editFormData.vehicleModel}
-                      onChange={(e) => setEditFormData({ ...editFormData, vehicleModel: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="vehiclePlate">License Plate</Label>
-                    <Input
-                      id="vehiclePlate"
-                      value={editFormData.vehiclePlate}
-                      onChange={(e) => setEditFormData({ ...editFormData, vehiclePlate: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="vehicleYear">Year</Label>
-                    <Input
-                      id="vehicleYear"
-                      type="number"
-                      value={editFormData.vehicleYear}
-                      onChange={(e) => setEditFormData({ ...editFormData, vehicleYear: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="vehicleColor">Color</Label>
-                    <Input
-                      id="vehicleColor"
-                      value={editFormData.vehicleColor}
-                      onChange={(e) => setEditFormData({ ...editFormData, vehicleColor: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Service Info */}
-              <div>
-                <h3 className="text-md font-semibold mb-3">Service Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="serviceType">Service Type</Label>
-                    <select
-                      id="serviceType"
-                      value={editFormData.serviceType}
-                      onChange={(e) => setEditFormData({ ...editFormData, serviceType: e.target.value })}
-                      className="w-full border rounded-md px-3 py-2"
-                      required
-                    >
-                      <option value="colour_repair">Colour Repair</option>
-                      <option value="clean_shine">Clean & Shine</option>
-                      <option value="coat_guard">Coat & Guard</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label htmlFor="stage">Current Stage</Label>
-                    <select
-                      id="stage"
-                      value={editFormData.stage}
-                      onChange={(e) => setEditFormData({ ...editFormData, stage: e.target.value })}
-                      className="w-full border rounded-md px-3 py-2"
-                      required
-                    >
-                      {stages.filter(s => s.value !== '').map(stage => (
-                        <option key={stage.value} value={stage.value}>
-                          {stage.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="assignedMechanic">Assigned Mechanic</Label>
-                    <select
-                      id="assignedMechanic"
-                      value={editFormData.assignedMechanicId}
-                      onChange={(e) => setEditFormData({ ...editFormData, assignedMechanicId: e.target.value })}
-                      className="w-full border rounded-md px-3 py-2"
-                    >
-                      <option value="">No mechanic assigned</option>
-                      {mechanics.map(mechanic => (
-                        <option key={mechanic._id} value={mechanic._id}>
-                          {mechanic.firstName} {mechanic.lastName} - {mechanic.specialization}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Diagnosis/Issue */}
-              <div>
-                <h3 className="text-md font-semibold mb-3">Damage Assessment / Diagnosis</h3>
-                <div>
-                  <Label htmlFor="damageAssessment">Issue Description</Label>
-                  <textarea
-                    id="damageAssessment"
-                    value={editFormData.damageAssessment}
-                    onChange={(e) => setEditFormData({ ...editFormData, damageAssessment: e.target.value })}
-                    className="w-full border rounded-md px-3 py-2 min-h-[80px]"
-                    placeholder="Describe the damage, issues, or required work..."
-                  />
-                </div>
-              </div>
-
-              {/* Payment Info */}
-              <div>
-                <h3 className="text-md font-semibold mb-3">Payment Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="estimatedCost">Estimated Cost (Ksh)</Label>
-                    <Input
-                      id="estimatedCost"
-                      type="number"
-                      step="0.01"
-                      value={editFormData.estimatedCost}
-                      onChange={(e) => setEditFormData({ ...editFormData, estimatedCost: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="paidAmount">Paid Amount (Ksh)</Label>
-                    <Input
-                      id="paidAmount"
-                      type="number"
-                      step="0.01"
-                      value={editFormData.paidAmount}
-                      onChange={(e) => setEditFormData({ ...editFormData, paidAmount: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="paymentStatus">Payment Status</Label>
-                    <select
-                      id="paymentStatus"
-                      value={editFormData.paymentStatus}
-                      onChange={(e) => setEditFormData({ ...editFormData, paymentStatus: e.target.value })}
-                      className="w-full border rounded-md px-3 py-2"
-                      required
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="partial">Partial</option>
-                      <option value="paid">Paid</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label htmlFor="expectedCompletionDate">Expected Completion Date</Label>
-                    <Input
-                      id="expectedCompletionDate"
-                      type="date"
-                      value={editFormData.expectedCompletionDate}
-                      onChange={(e) => setEditFormData({ ...editFormData, expectedCompletionDate: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div>
-                <h3 className="text-md font-semibold mb-3">Additional Notes</h3>
-                <div>
-                  <Label htmlFor="notes">Notes</Label>
-                  <textarea
-                    id="notes"
-                    value={editFormData.notes}
-                    onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
-                    className="w-full border rounded-md px-3 py-2 min-h-[80px]"
-                    placeholder="Any additional notes or comments..."
-                  />
-                </div>
-              </div>
-
-              {/* Photo Upload */}
-              <div>
-                <h3 className="text-md font-semibold mb-3">Vehicle Photos</h3>
-                
-                {/* Before Photos */}
-                <div className="mb-4">
-                  <Label htmlFor="beforePhotos" className="flex items-center gap-2">
-                    <Upload className="h-4 w-4" />
-                    Before Photos
-                  </Label>
-                  <input
-                    id="beforePhotos"
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload(e, 'before')}
-                    className="w-full border rounded-md px-3 py-2 mt-2 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    disabled={uploadingImages}
-                  />
-                  {beforePhotos.length > 0 && (
-                    <div className="grid grid-cols-4 gap-2 mt-3">
-                      {beforePhotos.map((photo, idx) => (
-                        <div key={idx} className="relative group">
-                          <img 
-                            src={photo} 
-                            alt={`Before ${idx + 1}`}
-                            className="w-full h-20 object-cover rounded border" 
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeImage('before', idx)}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* After Photos */}
-                <div>
-                  <Label htmlFor="afterPhotos" className="flex items-center gap-2">
-                    <Upload className="h-4 w-4" />
-                    After Photos
-                  </Label>
-                  <input
-                    id="afterPhotos"
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload(e, 'after')}
-                    className="w-full border rounded-md px-3 py-2 mt-2 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    disabled={uploadingImages}
-                  />
-                  {afterPhotos.length > 0 && (
-                    <div className="grid grid-cols-4 gap-2 mt-3">
-                      {afterPhotos.map((photo, idx) => (
-                        <div key={idx} className="relative group">
-                          <img 
-                            src={photo} 
-                            alt={`After ${idx + 1}`}
-                            className="w-full h-20 object-cover rounded border" 
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeImage('after', idx)}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {uploadingImages && (
-                  <p className="text-sm text-gray-500 mt-2">Compressing and uploading images...</p>
-                )}
+          <form onSubmit={handleUpdateCar} className="flex-1 overflow-hidden flex flex-col">
+            {/* Tab Navigation */}
+            <div className="border-b mb-4">
+              <div className="flex gap-1 overflow-x-auto">
+                {[
+                  { id: 'details', label: 'Vehicle Info' },
+                  { id: 'service', label: 'Service Info' },
+                  { id: 'photos', label: 'Photos' },
+                  { id: 'inspection', label: 'Inspection' },
+                  { id: 'payment', label: 'Payment' },
+                  { id: 'notes', label: 'Notes' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setEditTab(tab.id as any)}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      editTab === tab.id
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <DialogFooter className="mt-6">
+            {/* Tab Content */}
+            <div className="flex-1 overflow-y-auto pr-2">
+              {/* Vehicle Info Tab */}
+              {editTab === 'details' && (
+                <div className="space-y-4">
+                  <h3 className="text-md font-semibold">Vehicle Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="vehicleModel">Vehicle Model *</Label>
+                      <Input
+                        id="vehicleModel"
+                        value={editFormData.vehicleModel}
+                        onChange={(e) => setEditFormData({ ...editFormData, vehicleModel: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="vehiclePlate">License Plate *</Label>
+                      <Input
+                        id="vehiclePlate"
+                        value={editFormData.vehiclePlate}
+                        onChange={(e) => setEditFormData({ ...editFormData, vehiclePlate: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="vehicleYear">Year *</Label>
+                      <Input
+                        id="vehicleYear"
+                        type="number"
+                        value={editFormData.vehicleYear}
+                        onChange={(e) => setEditFormData({ ...editFormData, vehicleYear: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="vehicleColor">Color *</Label>
+                      <Input
+                        id="vehicleColor"
+                        value={editFormData.vehicleColor}
+                        onChange={(e) => setEditFormData({ ...editFormData, vehicleColor: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Service Info Tab */}
+              {editTab === 'service' && (
+                <div className="space-y-4">
+                  <h3 className="text-md font-semibold">Service Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="serviceType">Service Type *</Label>
+                      <select
+                        id="serviceType"
+                        value={editFormData.serviceType}
+                        onChange={(e) => setEditFormData({ ...editFormData, serviceType: e.target.value })}
+                        className="w-full border rounded-md px-3 py-2"
+                        required
+                      >
+                        <option value="colour_repair">Colour Repair</option>
+                        <option value="clean_shine">Clean & Shine</option>
+                        <option value="coat_guard">Coat & Guard</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="stage">Current Stage *</Label>
+                      <select
+                        id="stage"
+                        value={editFormData.stage}
+                        onChange={(e) => setEditFormData({ ...editFormData, stage: e.target.value })}
+                        className="w-full border rounded-md px-3 py-2"
+                        required
+                      >
+                        {stages.filter(s => s.value !== '').map(stage => (
+                          <option key={stage.value} value={stage.value}>
+                            {stage.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <Label htmlFor="assignedMechanic">Assigned Mechanic</Label>
+                      <select
+                        id="assignedMechanic"
+                        value={editFormData.assignedMechanicId}
+                        onChange={(e) => setEditFormData({ ...editFormData, assignedMechanicId: e.target.value })}
+                        className="w-full border rounded-md px-3 py-2"
+                      >
+                        <option value="">No mechanic assigned</option>
+                        {mechanics.map(mechanic => (
+                          <option key={mechanic._id} value={mechanic._id}>
+                            {mechanic.firstName} {mechanic.lastName} - {mechanic.specialization}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <Label htmlFor="expectedCompletionDate">Expected Completion Date</Label>
+                      <Input
+                        id="expectedCompletionDate"
+                        type="date"
+                        value={editFormData.expectedCompletionDate}
+                        onChange={(e) => setEditFormData({ ...editFormData, expectedCompletionDate: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Label htmlFor="damageAssessment">Damage Assessment / Issue Description</Label>
+                      <textarea
+                        id="damageAssessment"
+                        value={editFormData.damageAssessment}
+                        onChange={(e) => setEditFormData({ ...editFormData, damageAssessment: e.target.value })}
+                        className="w-full border rounded-md px-3 py-2 min-h-[100px]"
+                        placeholder="Describe the damage, issues, or required work..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Photos Tab */}
+              {editTab === 'photos' && (
+                <div className="space-y-4">
+                  <h3 className="text-md font-semibold">Vehicle Photos</h3>
+                  
+                  {/* Before Photos */}
+                  <div>
+                    <Label htmlFor="beforePhotos" className="flex items-center gap-2 mb-2">
+                      <Upload className="h-4 w-4" />
+                      Before Photos
+                    </Label>
+                    <input
+                      id="beforePhotos"
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'before')}
+                      className="w-full border rounded-md px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      disabled={uploadingImages}
+                    />
+                    {beforePhotos.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2 mt-3">
+                        {beforePhotos.map((photo, idx) => (
+                          <div key={idx} className="relative group">
+                            <img 
+                              src={photo} 
+                              alt={`Before ${idx + 1}`}
+                              className="w-full h-24 object-cover rounded border" 
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeImage('before', idx)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* After Photos */}
+                  <div>
+                    <Label htmlFor="afterPhotos" className="flex items-center gap-2 mb-2">
+                      <Upload className="h-4 w-4" />
+                      After Photos
+                    </Label>
+                    <input
+                      id="afterPhotos"
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'after')}
+                      className="w-full border rounded-md px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      disabled={uploadingImages}
+                    />
+                    {afterPhotos.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2 mt-3">
+                        {afterPhotos.map((photo, idx) => (
+                          <div key={idx} className="relative group">
+                            <img 
+                              src={photo} 
+                              alt={`After ${idx + 1}`}
+                              className="w-full h-24 object-cover rounded border" 
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeImage('after', idx)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {uploadingImages && (
+                    <p className="text-sm text-gray-500">Compressing and uploading images...</p>
+                  )}
+                </div>
+              )}
+
+              {/* Inspection Tab */}
+              {editTab === 'inspection' && selectedCar && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-md font-semibold">Vehicle Inspections</h3>
+                    {!showInspectionForm && (
+                      <Button type="button" size="sm" onClick={() => setShowInspectionForm(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Inspection
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Inspection form and list - same as view dialog */}
+                  {showInspectionForm && (
+                    <Card className="bg-gray-50">
+                      <CardHeader>
+                        <CardTitle className="text-base">New Inspection</CardTitle>
+                        <CardDescription>Select required parts and services</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <p className="text-sm text-gray-600">Use the Inspection tab in view mode to create inspections</p>
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => setShowInspectionForm(false)}
+                          >
+                            Close
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <div>
+                    <h4 className="font-medium mb-3 text-sm">Existing Inspections</h4>
+                    {inspections.length > 0 ? (
+                      <div className="space-y-2">
+                        {inspections.map((inspection: any) => (
+                          <Card key={inspection._id}>
+                            <CardContent className="p-3">
+                              <div className="flex items-center justify-between">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  inspection.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                  inspection.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {inspection.status.toUpperCase()}
+                                </span>
+                                <span className="text-sm font-bold">{formatCurrency(inspection.estimatedCost)}</span>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {formatDate(inspection.createdAt)}
+                              </p>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No inspections found</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Tab */}
+              {editTab === 'payment' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-md font-semibold">Payment Information</h3>
+                    {selectedCar && (
+                      <Button type="button" onClick={handleGenerateInvoice} size="sm">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Generate Invoice
+                      </Button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="estimatedCost">Estimated Cost (Ksh) *</Label>
+                      <Input
+                        id="estimatedCost"
+                        type="number"
+                        step="0.01"
+                        value={editFormData.estimatedCost}
+                        onChange={(e) => setEditFormData({ ...editFormData, estimatedCost: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="paidAmount">Paid Amount (Ksh) *</Label>
+                      <Input
+                        id="paidAmount"
+                        type="number"
+                        step="0.01"
+                        value={editFormData.paidAmount}
+                        onChange={(e) => setEditFormData({ ...editFormData, paidAmount: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Label htmlFor="paymentStatus">Payment Status *</Label>
+                      <select
+                        id="paymentStatus"
+                        value={editFormData.paymentStatus}
+                        onChange={(e) => setEditFormData({ ...editFormData, paymentStatus: e.target.value })}
+                        className="w-full border rounded-md px-3 py-2"
+                        required
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="partial">Partial</option>
+                        <option value="paid">Paid</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Payment Summary */}
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 className="font-semibold text-sm mb-2">Payment Summary</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span>Estimated Cost:</span>
+                        <span className="font-medium">{formatCurrency(parseFloat(editFormData.estimatedCost) || 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Paid Amount:</span>
+                        <span className="font-medium">{formatCurrency(parseFloat(editFormData.paidAmount) || 0)}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-blue-300 pt-1 mt-1">
+                        <span className="font-semibold">Balance:</span>
+                        <span className="font-bold text-lg">
+                          {formatCurrency((parseFloat(editFormData.estimatedCost) || 0) - (parseFloat(editFormData.paidAmount) || 0))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes Tab */}
+              {editTab === 'notes' && (
+                <div className="space-y-4">
+                  <h3 className="text-md font-semibold">Additional Notes</h3>
+                  <div>
+                    <Label htmlFor="notes">Notes & Comments</Label>
+                    <textarea
+                      id="notes"
+                      value={editFormData.notes}
+                      onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                      className="w-full border rounded-md px-3 py-2 min-h-[200px]"
+                      placeholder="Any additional notes, observations, or comments..."
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="mt-4 pt-4 border-t">
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Cancel
               </Button>
@@ -1581,249 +1756,306 @@ export default function CarsPage() {
 
       {/* Add Car Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Add New Service / Check-In</DialogTitle>
-            <DialogDescription>Select existing customer or add new customer and vehicle information</DialogDescription>
+            <DialogDescription>Create new car entry with customer and vehicle information</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleAddCar}>
-            <div className="space-y-6">
-              {/* Customer Selection Toggle */}
-              <div className="border rounded-lg p-4 bg-gray-50">
-                <div className="flex items-center gap-4 mb-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      checked={!isNewCustomer}
-                      onChange={() => {
-                        setIsNewCustomer(false);
-                        setAddFormData({
-                          ...addFormData,
-                          customerName: '',
-                          customerEmail: '',
-                          customerPhone: '',
-                          customerAddress: ''
-                        });
-                        setSelectedCustomerId('');
-                      }}
-                      className="w-4 h-4"
-                    />
-                    <span className="font-medium">Existing Customer</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      checked={isNewCustomer}
-                      onChange={() => {
-                        setIsNewCustomer(true);
-                        setSelectedCustomerId('');
-                        setAddFormData({
-                          ...addFormData,
-                          customerName: '',
-                          customerEmail: '',
-                          customerPhone: '',
-                          customerAddress: ''
-                        });
-                      }}
-                      className="w-4 h-4"
-                    />
-                    <span className="font-medium">New Customer</span>
-                  </label>
-                </div>
-
-                {!isNewCustomer && (
-                  <div>
-                    <Label htmlFor="existingCustomer">Search & Select Customer *</Label>
-                    <select
-                      id="existingCustomer"
-                      value={selectedCustomerId}
-                      onChange={(e) => {
-                        const customerId = e.target.value;
-                        setSelectedCustomerId(customerId);
-                        const customer = customers.find(c => c._id === customerId);
-                        if (customer) {
-                          setAddFormData({
-                            ...addFormData,
-                            customerName: customer.name,
-                            customerEmail: customer.email,
-                            customerPhone: customer.phone,
-                            customerAddress: customer.address || ''
-                          });
-                        }
-                      }}
-                      className="w-full border rounded-md px-3 py-2 mt-2"
-                      required={!isNewCustomer}
-                    >
-                      <option value="">-- Select a customer --</option>
-                      {customers.map(customer => (
-                        <option key={customer._id} value={customer._id}>
-                          {customer.name} - {customer.phone} - {customer.email}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+          <form onSubmit={handleAddCar} className="flex-1 overflow-hidden flex flex-col">
+            {/* Tab Navigation */}
+            <div className="border-b mb-4">
+              <div className="flex gap-1 overflow-x-auto">
+                {[
+                  { id: 'customer', label: 'Customer' },
+                  { id: 'details', label: 'Vehicle Info' },
+                  { id: 'service', label: 'Service Info' },
+                  { id: 'photos', label: 'Photos' },
+                  { id: 'payment', label: 'Payment' },
+                  { id: 'notes', label: 'Notes' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setAddTab(tab.id as any)}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      addTab === tab.id
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              {/* Customer Information */}
-              <div>
-                <h3 className="text-md font-semibold mb-3">Customer Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="customerName">Customer Name *</Label>
-                    <Input
-                      id="customerName"
-                      value={addFormData.customerName}
-                      onChange={(e) => setAddFormData({ ...addFormData, customerName: e.target.value })}
-                      placeholder="John Doe"
-                      required
-                      readOnly={!isNewCustomer}
-                      className={!isNewCustomer ? 'bg-gray-100 cursor-not-allowed' : ''}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="customerEmail">Email *</Label>
-                    <Input
-                      id="customerEmail"
-                      type="email"
-                      value={addFormData.customerEmail}
-                      onChange={(e) => setAddFormData({ ...addFormData, customerEmail: e.target.value })}
-                      placeholder="john@example.com"
-                      required
-                      readOnly={!isNewCustomer}
-                      className={!isNewCustomer ? 'bg-gray-100 cursor-not-allowed' : ''}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="customerPhone">Phone Number *</Label>
-                    <Input
-                      id="customerPhone"
-                      value={addFormData.customerPhone}
-                      onChange={(e) => setAddFormData({ ...addFormData, customerPhone: e.target.value })}
-                      placeholder="+254712345678"
-                      required
-                      readOnly={!isNewCustomer}
-                      className={!isNewCustomer ? 'bg-gray-100 cursor-not-allowed' : ''}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="customerAddress">Address (Optional)</Label>
-                    <Input
-                      id="customerAddress"
-                      value={addFormData.customerAddress}
-                      onChange={(e) => setAddFormData({ ...addFormData, customerAddress: e.target.value })}
-                      placeholder="Nairobi, Kenya"
-                      readOnly={!isNewCustomer}
-                      className={!isNewCustomer ? 'bg-gray-100 cursor-not-allowed' : ''}
-                    />
-                  </div>
-                </div>
-              </div>
+            {/* Tab Content */}
+            <div className="flex-1 overflow-y-auto pr-2">
+              {/* Customer Tab */}
+              {addTab === 'customer' && (
+                <div className="space-y-4">
+                  {/* Customer Selection Toggle */}
+                  <div className="border rounded-lg p-4 bg-gray-50">
+                    <div className="flex items-center gap-4 mb-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={!isNewCustomer}
+                          onChange={() => {
+                            setIsNewCustomer(false);
+                            setAddFormData({
+                              ...addFormData,
+                              customerName: '',
+                              customerEmail: '',
+                              customerPhone: '',
+                              customerAddress: ''
+                            });
+                            setSelectedCustomerId('');
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="font-medium">Existing Customer</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={isNewCustomer}
+                          onChange={() => {
+                            setIsNewCustomer(true);
+                            setSelectedCustomerId('');
+                            setAddFormData({
+                              ...addFormData,
+                              customerName: '',
+                              customerEmail: '',
+                              customerPhone: '',
+                              customerAddress: ''
+                            });
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="font-medium">New Customer</span>
+                      </label>
+                    </div>
 
-              {/* Vehicle Information */}
-              <div>
-                <h3 className="text-md font-semibold mb-3">Vehicle Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="addVehicleModel">Vehicle Model *</Label>
-                    <Input
-                      id="addVehicleModel"
-                      value={addFormData.vehicleModel}
-                      onChange={(e) => setAddFormData({ ...addFormData, vehicleModel: e.target.value })}
-                      placeholder="Toyota Corolla"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="addVehiclePlate">License Plate *</Label>
-                    <Input
-                      id="addVehiclePlate"
-                      value={addFormData.vehiclePlate}
-                      onChange={(e) => setAddFormData({ ...addFormData, vehiclePlate: e.target.value })}
-                      placeholder="KBB123A"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="addVehicleYear">Year *</Label>
-                    <Input
-                      id="addVehicleYear"
-                      type="number"
-                      value={addFormData.vehicleYear}
-                      onChange={(e) => setAddFormData({ ...addFormData, vehicleYear: e.target.value })}
-                      placeholder="2020"
-                      min="1900"
-                      max="2030"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="addVehicleColor">Color *</Label>
-                    <Input
-                      id="addVehicleColor"
-                      value={addFormData.vehicleColor}
-                      onChange={(e) => setAddFormData({ ...addFormData, vehicleColor: e.target.value })}
-                      placeholder="Red"
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Service Information */}
-              <div>
-                <h3 className="text-md font-semibold mb-3">Service Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="addServiceType">Service Type *</Label>
-                    <select
-                      id="addServiceType"
-                      value={addFormData.serviceType}
-                      onChange={(e) => {
-                        const selectedType = e.target.value;
-                        const serviceType = settings?.serviceTypes?.find(
-                          st => st.name.toLowerCase().replace(' & ', '_').replace(' ', '_') === selectedType
-                        );
-                        setAddFormData({ 
-                          ...addFormData, 
-                          serviceType: selectedType,
-                          estimatedCost: serviceType ? serviceType.basePrice.toString() : addFormData.estimatedCost
-                        });
-                      }}
-                      className="w-full border rounded-md px-3 py-2"
-                      required
-                    >
-                      <option value="colour_repair">Colour Repair</option>
-                      <option value="clean_shine">Clean & Shine</option>
-                      <option value="coat_guard">Coat & Guard</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label htmlFor="addEstimatedCost">Estimated Cost (Ksh) *</Label>
-                    <Input
-                      id="addEstimatedCost"
-                      type="number"
-                      step="0.01"
-                      value={addFormData.estimatedCost}
-                      onChange={(e) => setAddFormData({ ...addFormData, estimatedCost: e.target.value })}
-                      placeholder="50000"
-                      required
-                    />
-                    {settings?.serviceTypes?.find(
-                      st => st.name.toLowerCase().replace(' & ', '_').replace(' ', '_') === addFormData.serviceType
-                    )?.paymentTerms === 'deposit' && (
-                      <p className="text-sm text-blue-600 mt-1">
-                        💡 Deposit required: {settings?.serviceTypes?.find(
-                          st => st.name.toLowerCase().replace(' & ', '_').replace(' ', '_') === addFormData.serviceType
-                        )?.depositPercentage}% (Ksh {Math.round((parseFloat(addFormData.estimatedCost) || 0) * (settings?.serviceTypes?.find(
-                          st => st.name.toLowerCase().replace(' & ', '_').replace(' ', '_') === addFormData.serviceType
-                        )?.depositPercentage || 0) / 100).toLocaleString()})
-                      </p>
+                    {!isNewCustomer && (
+                      <div>
+                        <Label htmlFor="existingCustomer">Search & Select Customer *</Label>
+                        <select
+                          id="existingCustomer"
+                          value={selectedCustomerId}
+                          onChange={(e) => {
+                            const customerId = e.target.value;
+                            setSelectedCustomerId(customerId);
+                            const customer = customers.find(c => c._id === customerId);
+                            if (customer) {
+                              setAddFormData({
+                                ...addFormData,
+                                customerName: customer.name,
+                                customerEmail: customer.email,
+                                customerPhone: customer.phone,
+                                customerAddress: customer.address || ''
+                              });
+                            }
+                          }}
+                          className="w-full border rounded-md px-3 py-2 mt-2"
+                          required={!isNewCustomer}
+                        >
+                          <option value="">-- Select a customer --</option>
+                          {customers.map(customer => (
+                            <option key={customer._id} value={customer._id}>
+                              {customer.name} - {customer.phone} - {customer.email}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     )}
                   </div>
-                  
-                  {/* Services */}
-                  <div className="col-span-2">
+
+                  {/* Customer Information */}
+                  <div>
+                    <h3 className="text-md font-semibold mb-3">Customer Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="customerName">Customer Name *</Label>
+                        <Input
+                          id="customerName"
+                          value={addFormData.customerName}
+                          onChange={(e) => setAddFormData({ ...addFormData, customerName: e.target.value })}
+                          placeholder="John Doe"
+                          required
+                          readOnly={!isNewCustomer}
+                          className={!isNewCustomer ? 'bg-gray-100 cursor-not-allowed' : ''}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="customerEmail">Email *</Label>
+                        <Input
+                          id="customerEmail"
+                          type="email"
+                          value={addFormData.customerEmail}
+                          onChange={(e) => setAddFormData({ ...addFormData, customerEmail: e.target.value })}
+                          placeholder="john@example.com"
+                          required
+                          readOnly={!isNewCustomer}
+                          className={!isNewCustomer ? 'bg-gray-100 cursor-not-allowed' : ''}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="customerPhone">Phone Number *</Label>
+                        <Input
+                          id="customerPhone"
+                          value={addFormData.customerPhone}
+                          onChange={(e) => setAddFormData({ ...addFormData, customerPhone: e.target.value })}
+                          placeholder="+254712345678"
+                          required
+                          readOnly={!isNewCustomer}
+                          className={!isNewCustomer ? 'bg-gray-100 cursor-not-allowed' : ''}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="customerAddress">Address (Optional)</Label>
+                        <Input
+                          id="customerAddress"
+                          value={addFormData.customerAddress}
+                          onChange={(e) => setAddFormData({ ...addFormData, customerAddress: e.target.value })}
+                          placeholder="Nairobi, Kenya"
+                          readOnly={!isNewCustomer}
+                          className={!isNewCustomer ? 'bg-gray-100 cursor-not-allowed' : ''}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Vehicle Info Tab */}
+              {addTab === 'details' && (
+                <div className="space-y-4">
+                  <h3 className="text-md font-semibold">Vehicle Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="addVehicleModel">Vehicle Model *</Label>
+                      <Input
+                        id="addVehicleModel"
+                        value={addFormData.vehicleModel}
+                        onChange={(e) => setAddFormData({ ...addFormData, vehicleModel: e.target.value })}
+                        placeholder="Toyota Corolla"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="addVehiclePlate">License Plate *</Label>
+                      <Input
+                        id="addVehiclePlate"
+                        value={addFormData.vehiclePlate}
+                        onChange={(e) => setAddFormData({ ...addFormData, vehiclePlate: e.target.value })}
+                        placeholder="KBB123A"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="addVehicleYear">Year *</Label>
+                      <Input
+                        id="addVehicleYear"
+                        type="number"
+                        value={addFormData.vehicleYear}
+                        onChange={(e) => setAddFormData({ ...addFormData, vehicleYear: e.target.value })}
+                        placeholder="2020"
+                        min="1900"
+                        max="2030"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="addVehicleColor">Color *</Label>
+                      <Input
+                        id="addVehicleColor"
+                        value={addFormData.vehicleColor}
+                        onChange={(e) => setAddFormData({ ...addFormData, vehicleColor: e.target.value })}
+                        placeholder="Red"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Service Info Tab */}
+              {addTab === 'service' && (
+                <div className="space-y-4">
+                  <h3 className="text-md font-semibold">Service Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="addServiceType">Service Type *</Label>
+                      <select
+                        id="addServiceType"
+                        value={addFormData.serviceType}
+                        onChange={(e) => {
+                          const selectedType = e.target.value;
+                          const serviceType = settings?.serviceTypes?.find(
+                            st => st.name.toLowerCase().replace(' & ', '_').replace(' ', '_') === selectedType
+                          );
+                          setAddFormData({ 
+                            ...addFormData, 
+                            serviceType: selectedType,
+                            estimatedCost: serviceType ? serviceType.basePrice.toString() : addFormData.estimatedCost
+                          });
+                        }}
+                        className="w-full border rounded-md px-3 py-2"
+                        required
+                      >
+                        <option value="colour_repair">Colour Repair</option>
+                        <option value="clean_shine">Clean & Shine</option>
+                        <option value="coat_guard">Coat & Guard</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="addStage">Initial Stage *</Label>
+                      <select
+                        id="addStage"
+                        value={addFormData.stage}
+                        onChange={(e) => setAddFormData({ ...addFormData, stage: e.target.value })}
+                        className="w-full border rounded-md px-3 py-2"
+                        required
+                      >
+                        {stages.filter(s => s.value !== '' && s.value !== 'completed').map(stage => (
+                          <option key={stage.value} value={stage.value}>
+                            {stage.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Default: Waiting Inspection</p>
+                    </div>
+                    <div className="col-span-2">
+                      <Label htmlFor="addAssignedMechanic">Assign Mechanic (Optional)</Label>
+                      <select
+                        id="addAssignedMechanic"
+                        value={addFormData.assignedMechanicId}
+                        onChange={(e) => setAddFormData({ ...addFormData, assignedMechanicId: e.target.value })}
+                        className="w-full border rounded-md px-3 py-2"
+                      >
+                        <option value="">No mechanic assigned</option>
+                        {mechanics.map(mechanic => (
+                          <option key={mechanic._id} value={mechanic._id}>
+                            {mechanic.firstName} {mechanic.lastName} - {mechanic.specialization}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Auto-assign if left empty</p>
+                    </div>
+                    <div className="col-span-2">
+                      <Label htmlFor="addExpectedCompletionDate">Expected Completion Date</Label>
+                      <Input
+                        id="addExpectedCompletionDate"
+                        type="date"
+                        value={addFormData.expectedCompletionDate}
+                        onChange={(e) => setAddFormData({ ...addFormData, expectedCompletionDate: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Services Selection */}
+                  <div>
                     <Label>Services to be Performed *</Label>
                     <div className="grid grid-cols-2 gap-2 mt-2">
                       {['Inspection', 'Repair', 'Painting', 'Detailing', 'Polish', 'Coating'].map((service) => (
@@ -1854,141 +2086,165 @@ export default function CarsPage() {
                       <p className="text-xs text-gray-500 mt-1">Select at least one service (Standard Service will be used if none selected)</p>
                     )}
                   </div>
+                </div>
+              )}
 
-                  {/* Stage Selection */}
+              {/* Photos Tab */}
+              {addTab === 'photos' && (
+                <div className="space-y-4">
+                  <h3 className="text-md font-semibold">Vehicle Photos (Initial Condition)</h3>
+                  
                   <div>
-                    <Label htmlFor="addStage">Initial Stage *</Label>
-                    <select
-                      id="addStage"
-                      value={addFormData.stage}
-                      onChange={(e) => setAddFormData({ ...addFormData, stage: e.target.value })}
-                      className="w-full border rounded-md px-3 py-2"
-                      required
-                    >
-                      {stages.filter(s => s.value !== '' && s.value !== 'completed').map(stage => (
-                        <option key={stage.value} value={stage.value}>
-                          {stage.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">Default: Waiting Inspection</p>
+                    <Label htmlFor="addBeforePhotos" className="flex items-center gap-2 mb-2">
+                      <Upload className="h-4 w-4" />
+                      Upload Check-in Photos
+                    </Label>
+                    <input
+                      id="addBeforePhotos"
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'before')}
+                      className="w-full border rounded-md px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      disabled={uploadingImages}
+                    />
+                    {beforePhotos.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2 mt-3">
+                        {beforePhotos.map((photo, idx) => (
+                          <div key={idx} className="relative group">
+                            <img 
+                              src={photo} 
+                              alt={`Check-in ${idx + 1}`}
+                              className="w-full h-24 object-cover rounded border" 
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeImage('before', idx)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Assigned Mechanic */}
+                  {uploadingImages && (
+                    <p className="text-sm text-gray-500">Compressing and uploading images...</p>
+                  )}
+                </div>
+              )}
+
+              {/* Payment Tab */}
+              {addTab === 'payment' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-md font-semibold">Payment Information</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <Label htmlFor="addEstimatedCost">Estimated Cost (Ksh) *</Label>
+                      <Input
+                        id="addEstimatedCost"
+                        type="number"
+                        step="0.01"
+                        value={addFormData.estimatedCost}
+                        onChange={(e) => setAddFormData({ ...addFormData, estimatedCost: e.target.value })}
+                        placeholder="50000"
+                        required
+                      />
+                      {settings?.serviceTypes?.find(
+                        st => st.name.toLowerCase().replace(' & ', '_').replace(' ', '_') === addFormData.serviceType
+                      )?.paymentTerms === 'deposit' && (
+                        <p className="text-sm text-blue-600 mt-1">
+                          💡 Deposit required: {settings?.serviceTypes?.find(
+                            st => st.name.toLowerCase().replace(' & ', '_').replace(' ', '_') === addFormData.serviceType
+                          )?.depositPercentage}% (Ksh {Math.round((parseFloat(addFormData.estimatedCost) || 0) * (settings?.serviceTypes?.find(
+                            st => st.name.toLowerCase().replace(' & ', '_').replace(' ', '_') === addFormData.serviceType
+                          )?.depositPercentage || 0) / 100).toLocaleString()})
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Payment Summary */}
+                  {addFormData.estimatedCost && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <h4 className="font-semibold text-sm mb-2">Payment Summary</h4>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Service Type:</span>
+                          <span className="font-medium capitalize">{addFormData.serviceType.replace('_', ' ')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Estimated Cost:</span>
+                          <span className="font-medium">{formatCurrency(parseFloat(addFormData.estimatedCost) || 0)}</span>
+                        </div>
+                        {settings?.serviceTypes?.find(
+                          st => st.name.toLowerCase().replace(' & ', '_').replace(' ', '_') === addFormData.serviceType
+                        )?.paymentTerms === 'deposit' && (
+                          <div className="flex justify-between border-t border-blue-300 pt-1 mt-1">
+                            <span className="font-semibold">Deposit Due:</span>
+                            <span className="font-bold text-lg">
+                              {formatCurrency(Math.round((parseFloat(addFormData.estimatedCost) || 0) * (settings?.serviceTypes?.find(
+                                st => st.name.toLowerCase().replace(' & ', '_').replace(' ', '_') === addFormData.serviceType
+                              )?.depositPercentage || 0) / 100))}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      💡 <strong>Tip:</strong> Invoice can be generated after the car is checked in from the Payment tab.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes Tab */}
+              {addTab === 'notes' && (
+                <div className="space-y-4">
+                  <h3 className="text-md font-semibold">Assessment & Notes</h3>
+                  
                   <div>
-                    <Label htmlFor="addAssignedMechanic">Assign Mechanic (Optional)</Label>
-                    <select
-                      id="addAssignedMechanic"
-                      value={addFormData.assignedMechanicId}
-                      onChange={(e) => setAddFormData({ ...addFormData, assignedMechanicId: e.target.value })}
-                      className="w-full border rounded-md px-3 py-2"
-                    >
-                      <option value="">No mechanic assigned</option>
-                      {mechanics.map(mechanic => (
-                        <option key={mechanic._id} value={mechanic._id}>
-                          {mechanic.firstName} {mechanic.lastName} - {mechanic.specialization}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">Auto-assign if left empty</p>
+                    <Label htmlFor="addDamageAssessment">Damage/Issue Description</Label>
+                    <textarea
+                      id="addDamageAssessment"
+                      value={addFormData.damageAssessment}
+                      onChange={(e) => setAddFormData({ ...addFormData, damageAssessment: e.target.value })}
+                      className="w-full border rounded-md px-3 py-2 min-h-[120px]"
+                      placeholder="Describe visible damage, scratches, dents, or issues noticed during check-in..."
+                    />
                   </div>
 
                   <div>
-                    <Label htmlFor="addExpectedCompletionDate">Expected Completion Date</Label>
-                    <Input
-                      id="addExpectedCompletionDate"
-                      type="date"
-                      value={addFormData.expectedCompletionDate}
-                      onChange={(e) => setAddFormData({ ...addFormData, expectedCompletionDate: e.target.value })}
+                    <Label htmlFor="addNotes">Additional Notes (Optional)</Label>
+                    <textarea
+                      id="addNotes"
+                      value={addFormData.notes}
+                      onChange={(e) => setAddFormData({ ...addFormData, notes: e.target.value })}
+                      className="w-full border rounded-md px-3 py-2 min-h-[120px]"
+                      placeholder="Any initial observations, special requests, or customer instructions..."
                     />
                   </div>
                 </div>
-              </div>
-
-              {/* Damage Assessment */}
-              <div>
-                <h3 className="text-md font-semibold mb-3">Initial Assessment</h3>
-                <div>
-                  <Label htmlFor="addDamageAssessment">Damage/Issue Description</Label>
-                  <textarea
-                    id="addDamageAssessment"
-                    value={addFormData.damageAssessment}
-                    onChange={(e) => setAddFormData({ ...addFormData, damageAssessment: e.target.value })}
-                    className="w-full border rounded-md px-3 py-2 min-h-[80px]"
-                    placeholder="Describe visible damage, scratches, dents, or issues noticed during check-in..."
-                  />
-                </div>
-              </div>
-
-              {/* Photo Upload */}
-              <div>
-                <h3 className="text-md font-semibold mb-3">Vehicle Photos (Initial Condition)</h3>
-                
-                {/* Before Photos */}
-                <div className="mb-4">
-                  <Label htmlFor="addBeforePhotos" className="flex items-center gap-2">
-                    <Upload className="h-4 w-4" />
-                    Upload Check-in Photos
-                  </Label>
-                  <input
-                    id="addBeforePhotos"
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload(e, 'before')}
-                    className="w-full border rounded-md px-3 py-2 mt-2 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    disabled={uploadingImages}
-                  />
-                  {beforePhotos.length > 0 && (
-                    <div className="grid grid-cols-4 gap-2 mt-3">
-                      {beforePhotos.map((photo, idx) => (
-                        <div key={idx} className="relative group">
-                          <img 
-                            src={photo} 
-                            alt={`Check-in ${idx + 1}`}
-                            className="w-full h-20 object-cover rounded border" 
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeImage('before', idx)}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {uploadingImages && (
-                  <p className="text-sm text-gray-500 mt-2">Compressing and uploading images...</p>
-                )}
-              </div>
-
-              {/* Additional Notes */}
-              <div>
-                <h3 className="text-md font-semibold mb-3">Additional Notes</h3>
-                <div>
-                  <Label htmlFor="addNotes">Notes (Optional)</Label>
-                  <textarea
-                    id="addNotes"
-                    value={addFormData.notes}
-                    onChange={(e) => setAddFormData({ ...addFormData, notes: e.target.value })}
-                    className="w-full border rounded-md px-3 py-2 min-h-[80px]"
-                    placeholder="Any initial observations, special requests, or customer instructions..."
-                  />
-                </div>
-              </div>
+              )}
             </div>
 
-            <DialogFooter className="mt-6">
-              <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+            <DialogFooter className="mt-4 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => {
+                setIsAddDialogOpen(false);
+                setAddTab('customer');
+              }}>
                 Cancel
               </Button>
               <Button type="submit">
                 <Plus className="h-4 w-4 mr-2" />
-                Add Car
+                Add Car & Check-In
               </Button>
             </DialogFooter>
           </form>
