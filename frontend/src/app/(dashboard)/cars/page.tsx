@@ -48,6 +48,9 @@ interface Car {
   afterPhotos: string[];
   notes?: string;
   statusProgress: number;
+  customServiceDescription?: string;
+  inspectionNotes?: string;
+  completionNotes?: string;
 }
 
 interface Mechanic {
@@ -76,9 +79,11 @@ export default function CarsPage() {
   const [loading, setLoading] = useState(true);
   const [filterStage, setFilterStage] = useState<string>('');
   const [selectedCar, setSelectedCar] = useState<Car | null>(null);
-  const [activeTab, setActiveTab] = useState<'details' | 'service' | 'payment' | 'photos' | 'inspection' | 'notes'>('details');
-  const [editTab, setEditTab] = useState<'details' | 'service' | 'payment' | 'photos' | 'inspection' | 'notes'>('details');
-  const [addTab, setAddTab] = useState<'customer' | 'details' | 'service' | 'payment' | 'photos' | 'notes'>('customer');
+  const [activeTab, setActiveTab] = useState<'details' | 'service' | 'inspection' | 'payment' | 'completed'>('details');
+  const [editTab, setEditTab] = useState<'details' | 'service' | 'inspection' | 'payment' | 'completed'>('details');
+  const [addTab, setAddTab] = useState<'customer' | 'details' | 'service' | 'inspection' | 'payment' | 'completed'>('customer');
+  const [customServiceDescription, setCustomServiceDescription] = useState('');
+  const [completionNotes, setCompletionNotes] = useState('');
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -112,7 +117,11 @@ export default function CarsPage() {
     paymentStatus: '',
     damageAssessment: '',
     notes: '',
-    expectedCompletionDate: ''
+    expectedCompletionDate: '',
+    services: [] as string[],
+    customServiceDescription: '',
+    inspectionNotes: '',
+    completionNotes: ''
   });
   const [addFormData, setAddFormData] = useState({
     customerName: '',
@@ -125,11 +134,14 @@ export default function CarsPage() {
     vehicleColor: '',
     serviceType: 'colour_repair',
     services: [] as string[],
+    customServiceDescription: '',
     stage: 'waiting_inspection',
     assignedMechanicId: '',
     estimatedCost: '',
     damageAssessment: '',
+    inspectionNotes: '',
     notes: '',
+    completionNotes: '',
     expectedCompletionDate: ''
   });
 
@@ -250,28 +262,79 @@ export default function CarsPage() {
     if (!selectedCar) return;
     
     try {
-      const response = await api.post('/invoices', {
-        customerId: selectedCar.customerId,
-        vehicleId: selectedCar._id,
-        items: [
-          {
-            description: `${selectedCar.serviceType.replace('_', ' ')} - ${selectedCar.vehicleModel} (${selectedCar.vehiclePlate})`,
-            quantity: 1,
-            unitPrice: selectedCar.estimatedCost,
-            total: selectedCar.estimatedCost
+      // Build items array from selected services
+      const items = [];
+      
+      if (selectedCar.services && selectedCar.services.length > 0) {
+        // If services are specified, create line items for each
+        selectedCar.services.forEach(serviceName => {
+          const serviceType = settings?.serviceTypes?.find((st: any) => st.name === serviceName);
+          if (serviceType) {
+            items.push({
+              description: `${serviceType.name} - ${selectedCar.vehicleModel} (${selectedCar.vehiclePlate})`,
+              quantity: 1,
+              unitPrice: serviceType.basePrice,
+              total: serviceType.basePrice
+            });
+          } else if (serviceName === 'Other' && selectedCar.customServiceDescription) {
+            items.push({
+              description: `${selectedCar.customServiceDescription} - ${selectedCar.vehicleModel} (${selectedCar.vehiclePlate})`,
+              quantity: 1,
+              unitPrice: selectedCar.estimatedCost,
+              total: selectedCar.estimatedCost
+            });
           }
-        ],
-        subtotal: selectedCar.estimatedCost,
-        tax: 0,
-        total: selectedCar.estimatedCost,
+        });
+      }
+      
+      // Fallback if no services or items
+      if (items.length === 0) {
+        items.push({
+          description: `${selectedCar.serviceType.replace('_', ' ')} - ${selectedCar.vehicleModel} (${selectedCar.vehiclePlate})`,
+          quantity: 1,
+          unitPrice: selectedCar.estimatedCost,
+          total: selectedCar.estimatedCost
+        });
+      }
+      
+      const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+      const tax = 0; // No tax for now
+      const total = subtotal + tax;
+      
+      const invoiceData = {
+        carId: selectedCar._id,
+        customerId: selectedCar.customerId,
+        items,
+        subtotal,
+        tax,
+        taxRate: 0,
+        total,
+        paidAmount: selectedCar.paidAmount || 0,
         dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         notes: selectedCar.notes || ''
-      });
+      };
+      
+      console.log('Sending invoice data:', invoiceData);
+      
+      const response = await api.post('/invoices', invoiceData);
       toast.success('Invoice generated successfully!');
       console.log('Invoice created:', response.data);
+      
+      // Refresh the car details to show invoice was created
+      if (selectedCar._id) {
+        await handleViewCar(selectedCar._id);
+      }
     } catch (error: any) {
       console.error('Failed to generate invoice:', error);
-      toast.error(error.response?.data?.message || 'Failed to generate invoice');
+      console.error('Error response:', error.response?.data);
+      if (error.response?.data?.errors) {
+        console.error('Validation errors:', JSON.stringify(error.response.data.errors, null, 2));
+      }
+      const errorMessage = error.response?.data?.errors?.[0]?.message || 
+                          error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          'Failed to generate invoice';
+      toast.error(errorMessage);
     }
   };
 
@@ -475,7 +538,11 @@ export default function CarsPage() {
       paymentStatus: car.paymentStatus,
       damageAssessment: car.damageAssessment || '',
       notes: car.notes || '',
-      expectedCompletionDate: car.expectedCompletionDate ? new Date(car.expectedCompletionDate).toISOString().split('T')[0] : ''
+      expectedCompletionDate: car.expectedCompletionDate ? new Date(car.expectedCompletionDate).toISOString().split('T')[0] : '',
+      services: car.services || [],
+      customServiceDescription: car.customServiceDescription || '',
+      inspectionNotes: car.inspectionNotes || '',
+      completionNotes: car.completionNotes || ''
     });
     setEditTab('details');
     setIsEditDialogOpen(true);
@@ -507,7 +574,11 @@ export default function CarsPage() {
           notes: editFormData.notes || undefined,
           expectedCompletionDate: editFormData.expectedCompletionDate || undefined,
           beforePhotos: beforePhotos,
-          afterPhotos: afterPhotos
+          afterPhotos: afterPhotos,
+          services: editFormData.services,
+          customServiceDescription: editFormData.customServiceDescription || undefined,
+          inspectionNotes: editFormData.inspectionNotes || undefined,
+          completionNotes: editFormData.completionNotes || undefined
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -580,7 +651,11 @@ export default function CarsPage() {
           expectedCompletionDate: completionDate,
           damageAssessment: addFormData.damageAssessment || undefined,
           beforePhotos: beforePhotos,
-          notes: addFormData.notes || undefined
+          afterPhotos: afterPhotos,
+          notes: addFormData.notes || undefined,
+          customServiceDescription: addFormData.customServiceDescription || undefined,
+          inspectionNotes: addFormData.inspectionNotes || undefined,
+          completionNotes: addFormData.completionNotes || undefined
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -602,7 +677,10 @@ export default function CarsPage() {
         estimatedCost: '',
         damageAssessment: '',
         notes: '',
-        expectedCompletionDate: ''
+        expectedCompletionDate: '',
+        customServiceDescription: '',
+        inspectionNotes: '',
+        completionNotes: ''
       });
       setIsNewCustomer(true);
       setSelectedCustomerId('');
@@ -791,10 +869,9 @@ export default function CarsPage() {
                 {[
                   { id: 'details', label: 'Vehicle Info' },
                   { id: 'service', label: 'Service Info' },
-                  { id: 'photos', label: 'Photos' },
                   { id: 'inspection', label: 'Inspection' },
                   { id: 'payment', label: 'Payment' },
-                  { id: 'notes', label: 'Notes' },
+                  { id: 'completed', label: 'Completed' },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -969,29 +1046,55 @@ export default function CarsPage() {
                 </div>
               )}
 
-              {/* Photos Tab */}
-              {selectedCar && activeTab === 'photos' && (
+              {/* Inspection Tab */}
+              {selectedCar && activeTab === 'inspection' && (
                 <div className="space-y-6">
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Before Photos</h3>
+                    <h3 className="text-lg font-semibold mb-4">Check-in Photos</h3>
                     {selectedCar.beforePhotos && selectedCar.beforePhotos.length > 0 ? (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {selectedCar.beforePhotos.map((photo, idx) => (
                           <img 
                             key={idx} 
                             src={photo} 
-                            alt={`Before ${idx + 1}`} 
+                            alt={`Check-in ${idx + 1}`} 
                             className="w-full h-48 object-cover rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer" 
                             onClick={() => window.open(photo, '_blank')}
                           />
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500">No before photos uploaded</p>
+                      <p className="text-sm text-gray-500">No check-in photos uploaded</p>
                     )}
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">After Photos</h3>
+                    <h3 className="text-lg font-semibold mb-4">Damage Assessment</h3>
+                    {selectedCar.damageAssessment ? (
+                      <div className="bg-gray-50 p-4 rounded-lg border">
+                        <p className="text-sm whitespace-pre-wrap">{selectedCar.damageAssessment}</p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No damage assessment recorded</p>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Initial Inspection Notes</h3>
+                    {selectedCar.inspectionNotes ? (
+                      <div className="bg-gray-50 p-4 rounded-lg border">
+                        <p className="text-sm whitespace-pre-wrap">{selectedCar.inspectionNotes}</p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No inspection notes recorded</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Completed Tab */}
+              {selectedCar && activeTab === 'completed' && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">After/Completion Photos</h3>
                     {selectedCar.afterPhotos && selectedCar.afterPhotos.length > 0 ? (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {selectedCar.afterPhotos.map((photo, idx) => (
@@ -1005,333 +1108,35 @@ export default function CarsPage() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500">No after photos uploaded</p>
+                      <p className="text-sm text-gray-500">No completion photos uploaded</p>
                     )}
                   </div>
-                </div>
-              )}
-
-              {/* Inspection Tab */}
-              {selectedCar && activeTab === 'inspection' && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold">Vehicle Inspections</h3>
-                    {!showInspectionForm && (
-                      <Button size="sm" onClick={() => setShowInspectionForm(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create Inspection
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Create Inspection Form */}
-                  {showInspectionForm && (
-                    <Card className="bg-gray-50">
-                      <CardHeader>
-                        <CardTitle className="text-base">New Inspection</CardTitle>
-                        <CardDescription>Select required parts and services for this vehicle</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <form onSubmit={handleCreateInspection} className="space-y-4">
-                          {/* Required Parts */}
-                          <div>
-                            <Label className="text-sm font-semibold mb-2 block">Required Parts</Label>
-                            <div className="space-y-2">
-                              {/* Part Selection */}
-                              <div className="flex gap-2">
-                                <select
-                                  className="flex-1 border rounded-md px-3 py-2 text-sm"
-                                  onChange={(e) => {
-                                    const part = inventoryItems.find(item => item._id === e.target.value);
-                                    if (part) addPartToInspection(part);
-                                    e.target.value = '';
-                                  }}
-                                >
-                                  <option value="">Select part from inventory...</option>
-                                  {inventoryItems.map(item => (
-                                    <option key={item._id} value={item._id}>
-                                      {item.name} - {formatCurrency(item.unitPrice)} (Stock: {item.quantity})
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-
-                              {/* Selected Parts List */}
-                              {inspectionFormData.requiredParts.length > 0 ? (
-                                <div className="space-y-2 mt-3">
-                                  {inspectionFormData.requiredParts.map((part, idx) => (
-                                    <div key={idx} className="flex items-center gap-2 bg-white p-3 rounded border">
-                                      <div className="flex-1">
-                                        <p className="font-medium text-sm">{part.partName}</p>
-                                        <p className="text-xs text-gray-500">Unit Price: {formatCurrency(part.unitPrice)}</p>
-                                      </div>
-                                      <Input
-                                        type="number"
-                                        min="1"
-                                        value={part.quantity}
-                                        onChange={(e) => {
-                                          const updatedParts = [...inspectionFormData.requiredParts];
-                                          updatedParts[idx].quantity = parseInt(e.target.value) || 1;
-                                          setInspectionFormData({ ...inspectionFormData, requiredParts: updatedParts });
-                                        }}
-                                        className="w-20"
-                                        placeholder="Qty"
-                                      />
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => removePartFromInspection(idx)}
-                                      >
-                                        <X className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  ))}
-                                  <div className="bg-blue-50 p-2 rounded text-sm">
-                                    <strong>Parts Total:</strong> {formatCurrency(
-                                      inspectionFormData.requiredParts.reduce((sum, part) => sum + (part.unitPrice * part.quantity), 0)
-                                    )}
-                                  </div>
-                                </div>
-                              ) : (
-                                <p className="text-sm text-gray-500">No parts selected</p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Required Services */}
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <Label className="text-sm font-semibold">Required Services</Label>
-                              <Button type="button" size="sm" variant="outline" onClick={addServiceToInspection}>
-                                <Plus className="h-3 w-3 mr-1" />
-                                Add Service
-                              </Button>
-                            </div>
-                            <div className="space-y-2">
-                              {inspectionFormData.requiredServices.length > 0 ? (
-                                <div className="space-y-2">
-                                  {inspectionFormData.requiredServices.map((service, idx) => (
-                                    <div key={idx} className="bg-white p-3 rounded border space-y-2">
-                                      <div className="flex gap-2">
-                                        <Input
-                                          placeholder="Service name"
-                                          value={service.name}
-                                          onChange={(e) => updateServiceInInspection(idx, 'name', e.target.value)}
-                                          className="flex-1"
-                                          required
-                                        />
-                                        <Input
-                                          type="number"
-                                          placeholder="Price"
-                                          value={service.price || ''}
-                                          onChange={(e) => updateServiceInInspection(idx, 'price', parseFloat(e.target.value) || 0)}
-                                          className="w-32"
-                                          required
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => removeServiceFromInspection(idx)}
-                                        >
-                                          <X className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                      <Input
-                                        placeholder="Description"
-                                        value={service.description}
-                                        onChange={(e) => updateServiceInInspection(idx, 'description', e.target.value)}
-                                      />
-                                    </div>
-                                  ))}
-                                  <div className="bg-blue-50 p-2 rounded text-sm">
-                                    <strong>Services Total:</strong> {formatCurrency(
-                                      inspectionFormData.requiredServices.reduce((sum, service) => sum + service.price, 0)
-                                    )}
-                                  </div>
-                                </div>
-                              ) : (
-                                <p className="text-sm text-gray-500">No services added</p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Additional Notes */}
-                          <div>
-                            <Label htmlFor="inspectionNotes" className="text-sm font-semibold">Additional Notes</Label>
-                            <textarea
-                              id="inspectionNotes"
-                              value={inspectionFormData.additionalNotes}
-                              onChange={(e) => setInspectionFormData({ ...inspectionFormData, additionalNotes: e.target.value })}
-                              className="w-full border rounded-md px-3 py-2 min-h-[80px] mt-2"
-                              placeholder="Any additional observations or recommendations..."
-                            />
-                          </div>
-
-                          {/* Estimated Total */}
-                          <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
-                            <div className="flex items-center justify-between">
-                              <span className="font-semibold text-lg">Estimated Total Cost:</span>
-                              <span className="text-2xl font-bold text-green-600">
-                                {formatCurrency(
-                                  inspectionFormData.requiredParts.reduce((sum, part) => sum + (part.unitPrice * part.quantity), 0) +
-                                  inspectionFormData.requiredServices.reduce((sum, service) => sum + service.price, 0)
-                                )}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Form Actions */}
-                          <div className="flex gap-2 justify-end">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => {
-                                setShowInspectionForm(false);
-                                setInspectionFormData({ requiredParts: [], requiredServices: [], additionalNotes: '' });
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                            <Button type="submit">Create Inspection</Button>
-                          </div>
-                        </form>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Existing Inspections List */}
                   <div>
-                    <h4 className="font-semibold mb-3">Inspection History</h4>
-                    {inspections.length > 0 ? (
-                      <div className="space-y-3">
-                        {inspections.map((inspection: any) => (
-                          <Card key={inspection._id}>
-                            <CardContent className="p-4">
-                              <div className="flex items-start justify-between mb-3">
-                                <div>
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                    inspection.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                    inspection.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                    inspection.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-yellow-100 text-yellow-800'
-                                  }`}>
-                                    {inspection.status.toUpperCase()}
-                                  </span>
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    Created {formatDate(inspection.createdAt)}
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  <p className="text-lg font-bold">{formatCurrency(inspection.estimatedCost)}</p>
-                                  <p className="text-xs text-gray-500">Estimated Cost</p>
-                                </div>
-                              </div>
-
-                              {/* Parts */}
-                              {inspection.requiredParts?.length > 0 && (
-                                <div className="mb-3">
-                                  <Label className="text-xs font-semibold text-gray-600">Required Parts:</Label>
-                                  <ul className="text-sm mt-1 space-y-1">
-                                    {inspection.requiredParts.map((part: any, idx: number) => (
-                                      <li key={idx} className="flex justify-between">
-                                        <span>{part.partName} x{part.quantity}</span>
-                                        <span className="font-medium">{formatCurrency(part.unitPrice * part.quantity)}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {/* Services */}
-                              {inspection.requiredServices?.length > 0 && (
-                                <div className="mb-3">
-                                  <Label className="text-xs font-semibold text-gray-600">Required Services:</Label>
-                                  <ul className="text-sm mt-1 space-y-1">
-                                    {inspection.requiredServices.map((service: any, idx: number) => (
-                                      <li key={idx} className="flex justify-between">
-                                        <span>{service.name}</span>
-                                        <span className="font-medium">{formatCurrency(service.price)}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {/* Notes */}
-                              {inspection.additionalNotes && (
-                                <div className="mb-3">
-                                  <Label className="text-xs font-semibold text-gray-600">Notes:</Label>
-                                  <p className="text-sm text-gray-700 mt-1">{inspection.additionalNotes}</p>
-                                </div>
-                              )}
-
-                              {/* Actions for pending inspections */}
-                              {inspection.status === 'pending' && (
-                                <div className="flex gap-2 mt-3 pt-3 border-t">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="flex-1"
-                                    onClick={() => {
-                                      const reason = prompt('Enter rejection reason:');
-                                      if (reason) handleRejectInspection(inspection._id, reason);
-                                    }}
-                                  >
-                                    Reject
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    className="flex-1"
-                                    onClick={() => handleApproveInspection(inspection._id)}
-                                  >
-                                    Approve
-                                  </Button>
-                                </div>
-                              )}
-
-                              {/* Rejection reason */}
-                              {inspection.rejectionReason && (
-                                <div className="mt-3 p-2 bg-red-50 rounded text-sm">
-                                  <strong>Rejection Reason:</strong> {inspection.rejectionReason}
-                                </div>
-                              )}
-
-                              {/* Invoice link */}
-                              {inspection.invoiceId && (
-                                <div className="mt-3 p-2 bg-green-50 rounded text-sm">
-                                  <strong>Invoice Generated:</strong> #{inspection.invoiceId}
-                                </div>
-                              )}
-                            </CardContent>
-                          </Card>
-                        ))}
+                    <h3 className="text-lg font-semibold mb-4">Completion Notes</h3>
+                    {selectedCar.completionNotes ? (
+                      <div className="bg-gray-50 p-4 rounded-lg border">
+                        <p className="text-sm whitespace-pre-wrap">{selectedCar.completionNotes}</p>
                       </div>
                     ) : (
-                      <div className="text-center py-8 bg-gray-50 rounded-lg border">
-                        <p className="text-gray-500">No inspections found for this vehicle</p>
-                        <p className="text-sm text-gray-400 mt-1">Create the first inspection using the button above</p>
-                      </div>
+                      <p className="text-sm text-gray-500">No completion notes recorded</p>
                     )}
                   </div>
-                </div>
-              )}
-
-              {/* Notes Tab */}
-              {selectedCar && activeTab === 'notes' && (
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">Damage Assessment / Issue</h3>
-                    <div className="p-4 bg-gray-50 rounded-lg border">
-                      <p className="text-sm whitespace-pre-wrap">{selectedCar.damageAssessment || 'No damage assessment recorded yet'}</p>
-                    </div>
-                  </div>
-                  {selectedCar.notes && (
+                  {selectedCar.completionDate && (
                     <div>
-                      <h3 className="text-lg font-semibold mb-4">Additional Notes</h3>
-                      <div className="p-4 bg-gray-50 rounded-lg border">
-                        <p className="text-sm whitespace-pre-wrap">{selectedCar.notes}</p>
+                      <h3 className="text-lg font-semibold mb-4">Completion Details</h3>
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-gray-600 text-sm">Completed On</Label>
+                            <p className="font-medium">{formatDate(selectedCar.completionDate)}</p>
+                          </div>
+                          <div>
+                            <Label className="text-gray-600 text-sm">Status</Label>
+                            <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded text-sm font-medium">
+                              COMPLETED
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1356,10 +1161,9 @@ export default function CarsPage() {
                 {[
                   { id: 'details', label: 'Vehicle Info' },
                   { id: 'service', label: 'Service Info' },
-                  { id: 'photos', label: 'Photos' },
                   { id: 'inspection', label: 'Inspection' },
                   { id: 'payment', label: 'Payment' },
-                  { id: 'notes', label: 'Notes' },
+                  { id: 'completed', label: 'Completed' },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -1485,33 +1289,122 @@ export default function CarsPage() {
                         onChange={(e) => setEditFormData({ ...editFormData, expectedCompletionDate: e.target.value })}
                       />
                     </div>
+                    
+                    {/* Services Selection */}
                     <div className="col-span-2">
-                      <Label htmlFor="damageAssessment">Damage Assessment / Issue Description</Label>
-                      <textarea
-                        id="damageAssessment"
-                        value={editFormData.damageAssessment}
-                        onChange={(e) => setEditFormData({ ...editFormData, damageAssessment: e.target.value })}
-                        className="w-full border rounded-md px-3 py-2 min-h-[100px]"
-                        placeholder="Describe the damage, issues, or required work..."
-                      />
+                      <Label className="mb-3 block font-semibold">Services to Perform</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {settings?.serviceTypes && settings.serviceTypes.length > 0 ? (
+                          <>
+                            {settings.serviceTypes.map((serviceType: any) => (
+                              <label 
+                                key={serviceType._id}
+                                className="flex items-center gap-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={editFormData.services?.includes(serviceType.name) || false}
+                                  onChange={(e) => {
+                                    const services = editFormData.services || [];
+                                    if (e.target.checked) {
+                                      setEditFormData({ ...editFormData, services: [...services, serviceType.name] });
+                                    } else {
+                                      setEditFormData({ ...editFormData, services: services.filter(s => s !== serviceType.name) });
+                                    }
+                                  }}
+                                  className="w-4 h-4"
+                                />
+                                <div className="flex-1">
+                                  <span className="text-sm font-medium">{serviceType.name}</span>
+                                  <span className="text-xs text-gray-500 ml-2">({formatCurrency(serviceType.basePrice)})</span>
+                                </div>
+                              </label>
+                            ))}
+                            
+                            {/* Other Custom Service */}
+                            <label className="flex items-center gap-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors border-dashed">
+                              <input
+                                type="checkbox"
+                                checked={editFormData.services?.includes('Other') || false}
+                                onChange={(e) => {
+                                  const services = editFormData.services || [];
+                                  if (e.target.checked) {
+                                    setEditFormData({ ...editFormData, services: [...services, 'Other'] });
+                                  } else {
+                                    setEditFormData({ 
+                                      ...editFormData, 
+                                      services: services.filter(s => s !== 'Other'),
+                                      customServiceDescription: ''
+                                    });
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <div className="flex-1">
+                                <span className="text-sm font-medium">Other (Custom Service)</span>
+                              </div>
+                            </label>
+                          </>
+                        ) : (
+                          <p className="col-span-2 text-sm text-gray-500">Loading services...</p>
+                        )}
+                      </div>
+
+                      {/* Custom Service Description */}
+                      {editFormData.services?.includes('Other') && (
+                        <div className="mt-3">
+                          <Label htmlFor="editCustomServiceDescription">Describe Custom Service *</Label>
+                          <Input
+                            id="editCustomServiceDescription"
+                            value={editFormData.customServiceDescription || ''}
+                            onChange={(e) => setEditFormData({ ...editFormData, customServiceDescription: e.target.value })}
+                            placeholder="e.g., Window tinting, Custom paint job..."
+                            required
+                          />
+                        </div>
+                      )}
+
+                      {/* Total Cost Display */}
+                      {editFormData.services && editFormData.services.length > 0 && (
+                        <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Calculated Total from Services:</span>
+                            <span className="text-lg font-bold text-green-700">
+                              {formatCurrency(
+                                editFormData.services.reduce((total, serviceName) => {
+                                  const service = settings?.serviceTypes?.find((st: any) => st.name === serviceName);
+                                  return total + (service?.basePrice || 0);
+                                }, 0)
+                              )}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">You can adjust the final cost in the Payment tab</p>
+                        </div>
+                      )}
+
+                      {settings?.serviceTypes && settings.serviceTypes.length === 0 && (
+                        <p className="text-sm text-gray-500 mt-2">
+                          💡 No services configured yet. Please add service types in settings.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Photos Tab */}
-              {editTab === 'photos' && (
+              {/* Inspection Tab */}
+              {editTab === 'inspection' && (
                 <div className="space-y-4">
-                  <h3 className="text-md font-semibold">Vehicle Photos</h3>
+                  <h3 className="text-md font-semibold">Initial Inspection</h3>
                   
-                  {/* Before Photos */}
+                  {/* Check-in Photos */}
                   <div>
-                    <Label htmlFor="beforePhotos" className="flex items-center gap-2 mb-2">
+                    <Label htmlFor="editBeforePhotos" className="flex items-center gap-2 mb-2">
                       <Upload className="h-4 w-4" />
-                      Before Photos
+                      Check-in Photos (Multiple)
                     </Label>
                     <input
-                      id="beforePhotos"
+                      id="editBeforePhotos"
                       type="file"
                       multiple
                       accept="image/*"
@@ -1525,7 +1418,7 @@ export default function CarsPage() {
                           <div key={idx} className="relative group">
                             <img 
                               src={photo} 
-                              alt={`Before ${idx + 1}`}
+                              alt={`Check-in ${idx + 1}`}
                               className="w-full h-24 object-cover rounded border" 
                             />
                             <button
@@ -1539,113 +1432,33 @@ export default function CarsPage() {
                         ))}
                       </div>
                     )}
+                    {uploadingImages && (
+                      <p className="text-sm text-gray-500 mt-2">Compressing and uploading images...</p>
+                    )}
                   </div>
 
-                  {/* After Photos */}
+                  {/* Damage Assessment */}
                   <div>
-                    <Label htmlFor="afterPhotos" className="flex items-center gap-2 mb-2">
-                      <Upload className="h-4 w-4" />
-                      After Photos
-                    </Label>
-                    <input
-                      id="afterPhotos"
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => handleImageUpload(e, 'after')}
-                      className="w-full border rounded-md px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                      disabled={uploadingImages}
+                    <Label htmlFor="editDamageAssessment">Damage Assessment</Label>
+                    <textarea
+                      id="editDamageAssessment"
+                      value={editFormData.damageAssessment}
+                      onChange={(e) => setEditFormData({ ...editFormData, damageAssessment: e.target.value })}
+                      className="w-full border rounded-md px-3 py-2 min-h-[120px]"
+                      placeholder="Describe visible damage, dents, scratches, mechanical issues..."
                     />
-                    {afterPhotos.length > 0 && (
-                      <div className="grid grid-cols-4 gap-2 mt-3">
-                        {afterPhotos.map((photo, idx) => (
-                          <div key={idx} className="relative group">
-                            <img 
-                              src={photo} 
-                              alt={`After ${idx + 1}`}
-                              className="w-full h-24 object-cover rounded border" 
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeImage('after', idx)}
-                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
 
-                  {uploadingImages && (
-                    <p className="text-sm text-gray-500">Compressing and uploading images...</p>
-                  )}
-                </div>
-              )}
-
-              {/* Inspection Tab */}
-              {editTab === 'inspection' && selectedCar && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-md font-semibold">Vehicle Inspections</h3>
-                    {!showInspectionForm && (
-                      <Button type="button" size="sm" onClick={() => setShowInspectionForm(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create Inspection
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Inspection form and list - same as view dialog */}
-                  {showInspectionForm && (
-                    <Card className="bg-gray-50">
-                      <CardHeader>
-                        <CardTitle className="text-base">New Inspection</CardTitle>
-                        <CardDescription>Select required parts and services</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <p className="text-sm text-gray-600">Use the Inspection tab in view mode to create inspections</p>
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            onClick={() => setShowInspectionForm(false)}
-                          >
-                            Close
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
+                  {/* Initial Inspection Notes */}
                   <div>
-                    <h4 className="font-medium mb-3 text-sm">Existing Inspections</h4>
-                    {inspections.length > 0 ? (
-                      <div className="space-y-2">
-                        {inspections.map((inspection: any) => (
-                          <Card key={inspection._id}>
-                            <CardContent className="p-3">
-                              <div className="flex items-center justify-between">
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                  inspection.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                  inspection.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                  'bg-yellow-100 text-yellow-800'
-                                }`}>
-                                  {inspection.status.toUpperCase()}
-                                </span>
-                                <span className="text-sm font-bold">{formatCurrency(inspection.estimatedCost)}</span>
-                              </div>
-                              <p className="text-xs text-gray-500 mt-1">
-                                {formatDate(inspection.createdAt)}
-                              </p>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500">No inspections found</p>
-                    )}
+                    <Label htmlFor="editInspectionNotes">Initial Inspection Notes</Label>
+                    <textarea
+                      id="editInspectionNotes"
+                      value={editFormData.inspectionNotes || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, inspectionNotes: e.target.value })}
+                      className="w-full border rounded-md px-3 py-2 min-h-[120px]"
+                      placeholder="Initial observations, customer complaints, condition notes..."
+                    />
                   </div>
                 </div>
               )}
@@ -1724,19 +1537,70 @@ export default function CarsPage() {
                 </div>
               )}
 
-              {/* Notes Tab */}
-              {editTab === 'notes' && (
+              {/* Completed Tab */}
+              {editTab === 'completed' && (
                 <div className="space-y-4">
-                  <h3 className="text-md font-semibold">Additional Notes</h3>
+                  <div className="bg-blue-50 p-3 rounded-md border border-blue-200 mb-4">
+                    <p className="text-sm text-blue-800">
+                      💡 This section contains post-completion data that will be shown to the customer
+                    </p>
+                  </div>
+
+                  <h3 className="text-md font-semibold">Completion Documentation</h3>
+                  
+                  {/* After Photos */}
                   <div>
-                    <Label htmlFor="notes">Notes & Comments</Label>
-                    <textarea
-                      id="notes"
-                      value={editFormData.notes}
-                      onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
-                      className="w-full border rounded-md px-3 py-2 min-h-[200px]"
-                      placeholder="Any additional notes, observations, or comments..."
+                    <Label htmlFor="editAfterPhotos" className="flex items-center gap-2 mb-2">
+                      <Upload className="h-4 w-4" />
+                      After / Completion Photos (Multiple)
+                    </Label>
+                    <input
+                      id="editAfterPhotos"
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'after')}
+                      className="w-full border rounded-md px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                      disabled={uploadingImages}
                     />
+                    {afterPhotos.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2 mt-3">
+                        {afterPhotos.map((photo, idx) => (
+                          <div key={idx} className="relative group">
+                            <img 
+                              src={photo} 
+                              alt={`After ${idx + 1}`}
+                              className="w-full h-24 object-cover rounded border" 
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeImage('after', idx)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {uploadingImages && (
+                      <p className="text-sm text-gray-500 mt-2">Compressing and uploading images...</p>
+                    )}
+                  </div>
+
+                  {/* Completion Notes */}
+                  <div>
+                    <Label htmlFor="editCompletionNotes">Completion Notes</Label>
+                    <textarea
+                      id="editCompletionNotes"
+                      value={editFormData.completionNotes || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, completionNotes: e.target.value })}
+                      className="w-full border rounded-md px-3 py-2 min-h-[150px]"
+                      placeholder="Describe the work completed, parts replaced, services performed, recommendations..."
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      This will be shown to the customer when work is marked as completed
+                    </p>
                   </div>
                 </div>
               )}
@@ -1769,9 +1633,9 @@ export default function CarsPage() {
                   { id: 'customer', label: 'Customer' },
                   { id: 'details', label: 'Vehicle Info' },
                   { id: 'service', label: 'Service Info' },
-                  { id: 'photos', label: 'Photos' },
+                  { id: 'inspection', label: 'Inspection' },
                   { id: 'payment', label: 'Payment' },
-                  { id: 'notes', label: 'Notes' },
+                  { id: 'completed', label: 'Completed' },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -2058,46 +1922,109 @@ export default function CarsPage() {
                   <div>
                     <Label>Services to be Performed *</Label>
                     <div className="grid grid-cols-2 gap-2 mt-2">
-                      {['Inspection', 'Repair', 'Painting', 'Detailing', 'Polish', 'Coating'].map((service) => (
-                        <label key={service} className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={addFormData.services.includes(service)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setAddFormData({
-                                  ...addFormData,
-                                  services: [...addFormData.services, service]
-                                });
-                              } else {
-                                setAddFormData({
-                                  ...addFormData,
-                                  services: addFormData.services.filter(s => s !== service)
-                                });
-                              }
-                            }}
-                            className="w-4 h-4"
-                          />
-                          <span className="text-sm">{service}</span>
-                        </label>
-                      ))}
+                      {settings?.serviceTypes && settings.serviceTypes.length > 0 ? (
+                        <>
+                          {settings.serviceTypes.map((serviceType) => (
+                            <label key={serviceType.id} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={addFormData.services.includes(serviceType.name)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setAddFormData({
+                                      ...addFormData,
+                                      services: [...addFormData.services, serviceType.name]
+                                    });
+                                  } else {
+                                    setAddFormData({
+                                      ...addFormData,
+                                      services: addFormData.services.filter(s => s !== serviceType.name)
+                                    });
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <span className="text-sm">{serviceType.name} ({formatCurrency(serviceType.basePrice)})</span>
+                            </label>
+                          ))}
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={addFormData.services.includes('Other')}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setAddFormData({
+                                    ...addFormData,
+                                    services: [...addFormData.services, 'Other']
+                                  });
+                                } else {
+                                  setAddFormData({
+                                    ...addFormData,
+                                    services: addFormData.services.filter(s => s !== 'Other'),
+                                    customServiceDescription: ''
+                                  });
+                                }
+                              }}
+                              className="w-4 h-4"
+                            />
+                            <span className="text-sm font-medium">Other (Custom Service)</span>
+                          </label>
+                        </>
+                      ) : (
+                        <p className="text-sm text-gray-500 col-span-2">Loading services...</p>
+                      )}
                     </div>
+
+                    {/* Custom Service Description */}
+                    {addFormData.services.includes('Other') && (
+                      <div className="mt-3">
+                        <Label htmlFor="customServiceDesc">Describe Custom Service *</Label>
+                        <Input
+                          id="customServiceDesc"
+                          value={addFormData.customServiceDescription}
+                          onChange={(e) => setAddFormData({ ...addFormData, customServiceDescription: e.target.value })}
+                          placeholder="Describe the custom service needed..."
+                          required={addFormData.services.includes('Other')}
+                          className="mt-1"
+                        />
+                      </div>
+                    )}
+
+                    {/* Total Cost Calculation */}
+                    {addFormData.services.length > 0 && settings?.serviceTypes && (
+                      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-semibold">Total Services Cost:</span>
+                          <span className="text-lg font-bold text-green-600">
+                            {formatCurrency(
+                              addFormData.services.reduce((total, serviceName) => {
+                                const service = settings.serviceTypes.find(st => st.name === serviceName);
+                                return total + (service?.basePrice || 0);
+                              }, 0)
+                            )}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-1">Automatically calculated from selected services</p>
+                      </div>
+                    )}
+
                     {addFormData.services.length === 0 && (
-                      <p className="text-xs text-gray-500 mt-1">Select at least one service (Standard Service will be used if none selected)</p>
+                      <p className="text-xs text-gray-500 mt-1">Select at least one service</p>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* Photos Tab */}
-              {addTab === 'photos' && (
+              {/* Inspection Tab */}
+              {addTab === 'inspection' && (
                 <div className="space-y-4">
-                  <h3 className="text-md font-semibold">Vehicle Photos (Initial Condition)</h3>
+                  <h3 className="text-md font-semibold">Vehicle Inspection</h3>
                   
+                  {/* Check-in Photos */}
                   <div>
                     <Label htmlFor="addBeforePhotos" className="flex items-center gap-2 mb-2">
                       <Upload className="h-4 w-4" />
-                      Upload Check-in Photos
+                      Upload Check-in Photos (Multiple)
                     </Label>
                     <input
                       id="addBeforePhotos"
@@ -2128,11 +2055,34 @@ export default function CarsPage() {
                         ))}
                       </div>
                     )}
+                    {uploadingImages && (
+                      <p className="text-sm text-gray-500 mt-2">Compressing and uploading images...</p>
+                    )}
                   </div>
 
-                  {uploadingImages && (
-                    <p className="text-sm text-gray-500">Compressing and uploading images...</p>
-                  )}
+                  {/* Damage Assessment */}
+                  <div>
+                    <Label htmlFor="addDamageAssessment">Damage/Issue Description</Label>
+                    <textarea
+                      id="addDamageAssessment"
+                      value={addFormData.damageAssessment}
+                      onChange={(e) => setAddFormData({ ...addFormData, damageAssessment: e.target.value })}
+                      className="w-full border rounded-md px-3 py-2 min-h-[120px]"
+                      placeholder="Describe visible damage, scratches, dents, or issues noticed during check-in..."
+                    />
+                  </div>
+
+                  {/* Initial Notes */}
+                  <div>
+                    <Label htmlFor="addNotes">Initial Inspection Notes</Label>
+                    <textarea
+                      id="addNotes"
+                      value={addFormData.notes}
+                      onChange={(e) => setAddFormData({ ...addFormData, notes: e.target.value })}
+                      className="w-full border rounded-md px-3 py-2 min-h-[120px]"
+                      placeholder="Any initial observations, special requests, or customer instructions..."
+                    />
+                  </div>
                 </div>
               )}
 
@@ -2142,6 +2092,7 @@ export default function CarsPage() {
                   <div className="flex items-center justify-between">
                     <h3 className="text-md font-semibold">Payment Information</h3>
                   </div>
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
                       <Label htmlFor="addEstimatedCost">Estimated Cost (Ksh) *</Label>
@@ -2149,11 +2100,16 @@ export default function CarsPage() {
                         id="addEstimatedCost"
                         type="number"
                         step="0.01"
-                        value={addFormData.estimatedCost}
+                        value={addFormData.estimatedCost || (settings?.serviceTypes && addFormData.services.length > 0 ? 
+                          addFormData.services.reduce((total, serviceName) => {
+                            const service = settings.serviceTypes.find(st => st.name === serviceName);
+                            return total + (service?.basePrice || 0);
+                          }, 0) : 0)}
                         onChange={(e) => setAddFormData({ ...addFormData, estimatedCost: e.target.value })}
                         placeholder="50000"
                         required
                       />
+                      <p className="text-xs text-gray-500 mt-1">Auto-calculated from selected services. You can adjust if needed.</p>
                       {settings?.serviceTypes?.find(
                         st => st.name.toLowerCase().replace(' & ', '_').replace(' ', '_') === addFormData.serviceType
                       )?.paymentTerms === 'deposit' && (
@@ -2169,7 +2125,7 @@ export default function CarsPage() {
                   </div>
 
                   {/* Payment Summary */}
-                  {addFormData.estimatedCost && (
+                  {(addFormData.estimatedCost || addFormData.services.length > 0) && (
                     <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <h4 className="font-semibold text-sm mb-2">Payment Summary</h4>
                       <div className="space-y-1 text-sm">
@@ -2177,9 +2133,20 @@ export default function CarsPage() {
                           <span>Service Type:</span>
                           <span className="font-medium capitalize">{addFormData.serviceType.replace('_', ' ')}</span>
                         </div>
+                        {addFormData.services.length > 0 && (
+                          <div className="flex justify-between">
+                            <span>Selected Services:</span>
+                            <span className="font-medium">{addFormData.services.length}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between">
                           <span>Estimated Cost:</span>
-                          <span className="font-medium">{formatCurrency(parseFloat(addFormData.estimatedCost) || 0)}</span>
+                          <span className="font-medium">{formatCurrency(parseFloat(addFormData.estimatedCost) || 
+                            (settings?.serviceTypes && addFormData.services.length > 0 ? 
+                              addFormData.services.reduce((total, serviceName) => {
+                                const service = settings.serviceTypes.find(st => st.name === serviceName);
+                                return total + (service?.basePrice || 0);
+                              }, 0) : 0))}</span>
                         </div>
                         {settings?.serviceTypes?.find(
                           st => st.name.toLowerCase().replace(' & ', '_').replace(' ', '_') === addFormData.serviceType
@@ -2205,31 +2172,67 @@ export default function CarsPage() {
                 </div>
               )}
 
-              {/* Notes Tab */}
-              {addTab === 'notes' && (
+              {/* Completed Tab */}
+              {addTab === 'completed' && (
                 <div className="space-y-4">
-                  <h3 className="text-md font-semibold">Assessment & Notes</h3>
-                  
-                  <div>
-                    <Label htmlFor="addDamageAssessment">Damage/Issue Description</Label>
-                    <textarea
-                      id="addDamageAssessment"
-                      value={addFormData.damageAssessment}
-                      onChange={(e) => setAddFormData({ ...addFormData, damageAssessment: e.target.value })}
-                      className="w-full border rounded-md px-3 py-2 min-h-[120px]"
-                      placeholder="Describe visible damage, scratches, dents, or issues noticed during check-in..."
-                    />
+                  <h3 className="text-md font-semibold">Completion Information</h3>
+                  <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg mb-4">
+                    <p className="text-sm text-blue-800">
+                      ℹ️ This section will be filled when the work is completed. Leave empty for now or fill in if work is already done.
+                    </p>
                   </div>
 
+                  {/* After Photos */}
                   <div>
-                    <Label htmlFor="addNotes">Additional Notes (Optional)</Label>
-                    <textarea
-                      id="addNotes"
-                      value={addFormData.notes}
-                      onChange={(e) => setAddFormData({ ...addFormData, notes: e.target.value })}
-                      className="w-full border rounded-md px-3 py-2 min-h-[120px]"
-                      placeholder="Any initial observations, special requests, or customer instructions..."
+                    <Label htmlFor="addAfterPhotos" className="flex items-center gap-2 mb-2">
+                      <Upload className="h-4 w-4" />
+                      Upload After/Completion Photos (Multiple)
+                    </Label>
+                    <input
+                      id="addAfterPhotos"
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'after')}
+                      className="w-full border rounded-md px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                      disabled={uploadingImages}
                     />
+                    {afterPhotos.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2 mt-3">
+                        {afterPhotos.map((photo, idx) => (
+                          <div key={idx} className="relative group">
+                            <img 
+                              src={photo} 
+                              alt={`After ${idx + 1}`}
+                              className="w-full h-24 object-cover rounded border" 
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeImage('after', idx)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {uploadingImages && (
+                      <p className="text-sm text-gray-500 mt-2">Compressing and uploading images...</p>
+                    )}
+                  </div>
+
+                  {/* Completion Notes */}
+                  <div>
+                    <Label htmlFor="completionNotes">Completion Notes</Label>
+                    <textarea
+                      id="completionNotes"
+                      value={addFormData.completionNotes}
+                      onChange={(e) => setAddFormData({ ...addFormData, completionNotes: e.target.value })}
+                      className="w-full border rounded-md px-3 py-2 min-h-[150px]"
+                      placeholder="Describe what was done, parts replaced, issues resolved, etc..."
+                    />
+                    <p className="text-xs text-gray-500 mt-1">This will be shown to the customer when the work is marked as completed</p>
                   </div>
                 </div>
               )}
@@ -2244,7 +2247,7 @@ export default function CarsPage() {
               </Button>
               <Button type="submit">
                 <Plus className="h-4 w-4 mr-2" />
-                Add Car & Check-In
+                Add Car
               </Button>
             </DialogFooter>
           </form>

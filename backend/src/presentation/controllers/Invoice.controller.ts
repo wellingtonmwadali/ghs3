@@ -8,6 +8,22 @@ export class InvoiceController {
     this.invoiceService = new InvoiceService();
   }
 
+  getAllInvoices = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      const skip = req.query.skip ? parseInt(req.query.skip as string) : undefined;
+      
+      const invoices = await this.invoiceService.getAllInvoices(limit, skip);
+
+      res.status(200).json({
+        success: true,
+        data: invoices
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   createInvoice = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const invoice = await this.invoiceService.createInvoice(req.body);

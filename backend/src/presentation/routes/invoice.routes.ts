@@ -12,6 +12,7 @@ router.use(authenticate);
 
 router.get('/revenue-stats', authorize('owner', 'manager'), invoiceController.getRevenueStats);
 router.get('/outstanding', authorize('owner', 'manager'), invoiceController.getOutstandingInvoices);
+router.get('/', invoiceController.getAllInvoices);
 
 router.post('/', authorize('owner', 'manager', 'receptionist'), validate(createInvoiceSchema), invoiceController.createInvoice);
 router.get('/:id', invoiceController.getInvoiceById);

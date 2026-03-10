@@ -89,6 +89,10 @@ export class InvoiceService {
     return updatedInvoice;
   }
 
+  async getAllInvoices(limit?: number, skip?: number) {
+    return await this.invoiceRepository.findAll(limit, skip);
+  }
+
   async getInvoiceById(id: string) {
     const invoice = await this.invoiceRepository.findById(id);
     if (!invoice) {

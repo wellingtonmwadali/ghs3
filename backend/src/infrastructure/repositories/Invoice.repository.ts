@@ -20,7 +20,10 @@ export class InvoiceRepository {
   }
 
   async findAll(limit?: number, skip?: number): Promise<IInvoiceDocument[]> {
-    let query = InvoiceModel.find().sort({ issuedDate: -1 });
+    let query = InvoiceModel.find()
+      .populate('customerId', 'name email phone')
+      .populate('carId', 'vehicleModel vehiclePlate')
+      .sort({ issuedDate: -1 });
     
     if (skip) query = query.skip(skip);
     if (limit) query = query.limit(limit);

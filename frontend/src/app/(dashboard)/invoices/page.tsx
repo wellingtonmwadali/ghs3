@@ -27,29 +27,43 @@ import { Label } from '@/components/ui/label';
 interface Invoice {
   _id: string;
   invoiceNumber: string;
-  carId: string;
-  customerId: string;
-  customerName: string;
-  vehicleDetails: string;
-  services: Array<{ name: string; price: number }>;
-  laborCost: number;
-  partsCost: number;
+  carId: {
+    _id: string;
+    vehicleModel: string;
+    vehiclePlate: string;
+  } | string;
+  customerId: {
+    _id: string;
+    name: string;
+    email: string;
+    phone: string;
+  } | string;
+  items: Array<{
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  }>;
   subtotal: number;
   tax: number;
+  taxRate: number;
+  discount?: number;
   total: number;
-  amountPaid: number;
+  paidAmount: number;
   balance: number;
   paymentStatus: 'pending' | 'partial' | 'paid';
-  paymentMethod?: string;
-  issueDate: string;
-  dueDate: string;
-  payments?: Array<{
+  payments: Array<{
     amount: number;
     method: string;
     reference?: string;
     paymentPID?: string;
     paidAt: string;
   }>;
+  issuedDate: string;
+  dueDate: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export default function InvoicesPage() {
@@ -99,7 +113,8 @@ export default function InvoicesPage() {
       filtered = filtered.filter(
         (invoice) =>
           invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          invoice.customerName.toLowerCase().includes(searchTerm.toLowerCase())
+          (typeof invoice.customerId === 'object' && invoice.customerId.name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (typeof invoice.carId === 'object' && invoice.carId.vehiclePlate?.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
@@ -184,8 +199,8 @@ export default function InvoicesPage() {
     );
   }
 
-  const totalRevenue = invoices.reduce((sum, inv) => sum + inv.amountPaid, 0);
-  const pendingPayments = invoices.reduce((sum, inv) => sum + inv.balance, 0);
+  const totalRevenue = invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
+  const pendingPayments = invoices.reduce((sum, inv) => sum + (inv.balance || 0), 0);
   const paidInvoices = invoices.filter(inv => inv.paymentStatus === 'paid').length;
 
   return (
@@ -276,17 +291,17 @@ export default function InvoicesPage() {
               {filteredInvoices.map((invoice) => (
                 <TableRow key={invoice._id}>
                   <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                  <TableCell>{invoice.customerName}</TableCell>
-                  <TableCell>{invoice.vehicleDetails}</TableCell>
-                  <TableCell>Ksh {invoice.total.toLocaleString()}</TableCell>
-                  <TableCell>Ksh {invoice.amountPaid.toLocaleString()}</TableCell>
-                  <TableCell>Ksh {invoice.balance.toLocaleString()}</TableCell>
+                  <TableCell>{invoice.customerId?.name || 'N/A'}</TableCell>
+                  <TableCell>{invoice.carId ? `${invoice.carId.vehicleModel} (${invoice.carId.vehiclePlate})` : 'N/A'}</TableCell>
+                  <TableCell>Ksh {(invoice.total || 0).toLocaleString()}</TableCell>
+                  <TableCell>Ksh {(invoice.paidAmount || 0).toLocaleString()}</TableCell>
+                  <TableCell>Ksh {(invoice.balance || 0).toLocaleString()}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded-full text-xs capitalize ${getStatusBadge(invoice.paymentStatus)}`}>
                       {invoice.paymentStatus}
                     </span>
                   </TableCell>
-                  <TableCell>{new Date(invoice.issueDate).toLocaleDateString()}</TableCell>
+                  <TableCell>{new Date(invoice.issuedDate).toLocaleDateString()}</TableCell>
                   <TableCell>
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => handleView(invoice)}>
@@ -330,11 +345,11 @@ export default function InvoicesPage() {
                 </div>
                 <div>
                   <Label className="text-gray-600">Customer</Label>
-                  <p className="font-medium">{selectedInvoice.customerName}</p>
+                  <p className="font-medium">{typeof selectedInvoice.customerId === 'object' ? selectedInvoice.customerId.name : 'N/A'}</p>
                 </div>
                 <div>
-                  <Label className="text-gray-600">Vehicle</Label>
-                  <p className="font-medium">{selectedInvoice.vehicleDetails}</p>
+                  <Label className="text-sm text-gray-500">Vehicle</Label>
+                  <p className="font-medium">{typeof selectedInvoice.carId === 'object' ? `${selectedInvoice.carId.vehicleModel} (${selectedInvoice.carId.vehiclePlate})` : 'N/A'}</p>
                 </div>
                 <div>
                   <Label className="text-gray-600">Payment Status</Label>
@@ -345,46 +360,51 @@ export default function InvoicesPage() {
               </div>
 
               <div>
-                <Label className="text-gray-600 mb-2 block">Services</Label>
+                <Label className="text-gray-600 mb-2 block">Items</Label>
                 <div className="border rounded-md p-3 space-y-2">
-                  {selectedInvoice.services.map((service, index) => (
-                    <div key={index} className="flex justify-between">
-                      <span>{service.name}</span>
-                      <span>Ksh {service.price.toLocaleString()}</span>
-                    </div>
-                  ))}
+                  {selectedInvoice.items && selectedInvoice.items.length > 0 ? (
+                    selectedInvoice.items.map((item, index) => (
+                      <div key={index} className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <span className="text-sm">{item.description}</span>
+                          <span className="text-xs text-gray-500 ml-2">(Qty: {item.quantity})</span>
+                        </div>
+                        <span className="font-medium">Ksh {item.total.toLocaleString()}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No items</p>
+                  )}
                 </div>
               </div>
 
               <div className="border-t pt-4">
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span>Labor Cost:</span>
-                    <span>Ksh {selectedInvoice.laborCost.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Parts Cost:</span>
-                    <span>Ksh {selectedInvoice.partsCost.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span>Subtotal:</span>
-                    <span>Ksh {selectedInvoice.subtotal.toLocaleString()}</span>
+                    <span>Ksh {(selectedInvoice.subtotal || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Tax:</span>
-                    <span>Ksh {selectedInvoice.tax.toLocaleString()}</span>
+                    <span>Tax ({selectedInvoice.taxRate || 0}%):</span>
+                    <span>Ksh {(selectedInvoice.tax || 0).toLocaleString()}</span>
                   </div>
+                  {selectedInvoice.discount && selectedInvoice.discount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount:</span>
+                      <span>- Ksh {selectedInvoice.discount.toLocaleString()}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-bold text-lg border-t pt-2">
                     <span>Total:</span>
-                    <span>Ksh {selectedInvoice.total.toLocaleString()}</span>
+                    <span>Ksh {(selectedInvoice.total || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-green-600">
                     <span>Amount Paid:</span>
-                    <span>Ksh {selectedInvoice.amountPaid.toLocaleString()}</span>
+                    <span>Ksh {(selectedInvoice.paidAmount || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-yellow-600 font-bold">
                     <span>Balance:</span>
-                    <span>Ksh {selectedInvoice.balance.toLocaleString()}</span>
+                    <span>Ksh {(selectedInvoice.balance || 0).toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -392,7 +412,7 @@ export default function InvoicesPage() {
               <div className="grid grid-cols-2 gap-4 border-t pt-4">
                 <div>
                   <Label className="text-gray-600">Issue Date</Label>
-                  <p className="font-medium">{new Date(selectedInvoice.issueDate).toLocaleDateString()}</p>
+                  <p className="font-medium">{new Date(selectedInvoice.issuedDate).toLocaleDateString()}</p>
                 </div>
                 <div>
                   <Label className="text-gray-600">Due Date</Label>
@@ -433,15 +453,15 @@ export default function InvoicesPage() {
                 </div>
                 <div>
                   <Label className="text-xs text-gray-600">Customer</Label>
-                  <p className="font-medium">{selectedInvoice.customerName}</p>
+                  <p className="font-medium">{typeof selectedInvoice.customerId === 'object' ? selectedInvoice.customerId.name : 'N/A'}</p>
                 </div>
                 <div>
                   <Label className="text-xs text-gray-600">Total Amount</Label>
-                  <p className="font-medium">Ksh {selectedInvoice.total.toLocaleString()}</p>
+                  <p className="font-medium">Ksh {(selectedInvoice.total || 0).toLocaleString()}</p>
                 </div>
                 <div>
                   <Label className="text-xs text-gray-600">Balance Due</Label>
-                  <p className="font-bold text-yellow-600">Ksh {selectedInvoice.balance.toLocaleString()}</p>
+                  <p className="font-bold text-yellow-600">Ksh {(selectedInvoice.balance || 0).toLocaleString()}</p>
                 </div>
               </div>
 
