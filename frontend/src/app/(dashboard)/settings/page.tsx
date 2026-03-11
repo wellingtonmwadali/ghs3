@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Trash2, Save, Settings as SettingsIcon, Upload, Building2 } from 'lucide-react';
+import { Plus, Trash2, Save, Settings as SettingsIcon, Upload, Building2, ChevronUp, ChevronDown, Check } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
+import { useNotify } from '@/hooks/useNotify';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface ServiceType {
@@ -23,6 +24,7 @@ interface PromotionalMessage {
   id: string;
   title: string;
   message: string;
+  imageUrl?: string;
   target: 'all' | 'recurring' | 'new' | 'high_value';
 }
 
@@ -55,9 +57,11 @@ interface SettingsData {
   announcements: Announcement[];
   holidays: Holiday[];
   clockInEnabled: boolean;
+  autoAssignMechanics: boolean;
   promotionalDeliveryMethod: {
     email: boolean;
     whatsapp: boolean;
+    senderEmail?: string;
   };
   companyInfo?: CompanyInfo;
   notifications?: {
@@ -88,15 +92,18 @@ interface SettingsData {
 
 export default function SettingsPage() {
   const toast = useToast();
+  const notify = useNotify();
   const [settings, setSettings] = useState<SettingsData>({
     serviceTypes: [],
     promotionalMessages: [],
     announcements: [],
     holidays: [],
     clockInEnabled: false,
+    autoAssignMechanics: true,
     promotionalDeliveryMethod: {
       email: true,
-      whatsapp: false
+      whatsapp: false,
+      senderEmail: ''
     },
     companyInfo: {
       name: '',
@@ -134,6 +141,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'company' | 'services' | 'promotions' | 'announcements' | 'holidays' | 'features' | 'notifications'>('company');
   const [logoPreview, setLogoPreview] = useState<string>('');
+  const [expandedPromoId, setExpandedPromoId] = useState<string | null>(null);
+  const [isAddingPromo, setIsAddingPromo] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -161,6 +170,7 @@ export default function SettingsPage() {
         announcements: [],
         holidays: [],
         clockInEnabled: true,
+        autoAssignMechanics: true,
         promotionalDeliveryMethod: {
           email: true,
           whatsapp: false
@@ -650,36 +660,168 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              {/* Existing Promotional Messages */}
               {settings.promotionalMessages.map((promo, index) => (
-                <div key={promo.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="flex items-center justify-center w-8 h-8 bg-primary text-primary-foreground rounded-full font-semibold text-sm">
-                      {index + 1}
+                <div key={promo.id} className="border rounded-lg overflow-hidden">
+                  {/* Collapsed View - Title Only */}
+                  <div 
+                    className="p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 flex items-center justify-between"
+                    onClick={() => setExpandedPromoId(expandedPromoId === promo.id ? null : promo.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8 bg-primary text-primary-foreground rounded-full font-semibold text-sm">
+                        {index + 1}
+                      </div>
+                      <h4 className="font-medium text-lg">{promo.title || 'Untitled Message'}</h4>
                     </div>
-                    <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {expandedPromoId === promo.id ? (
+                        <ChevronUp className="h-5 w-5 text-gray-500" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-gray-500" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded View - Full Details */}
+                  {expandedPromoId === promo.id && (
+                    <div className="p-4 bg-white border-t space-y-4">
+                      <div>
+                        <Label className="text-sm font-semibold">Message Content</Label>
+                        <p className="mt-2 text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-md">
+                          {promo.message || 'No message content'}
+                        </p>
+                      </div>
+                      {promo.imageUrl && (
+                        <div>
+                          <Label className="text-sm font-semibold">Promotional Image</Label>
+                          <div className="mt-2 w-48 h-48 border rounded overflow-hidden">
+                            <img src={promo.imageUrl} alt="Promo" className="w-full h-full object-cover" />
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex gap-2 pt-2">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            removePromotionalMessage(promo.id);
+                            setExpandedPromoId(null);
+                          }}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete Message
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Add New Message Form */}
+              {isAddingPromo ? (
+                <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="flex items-center justify-center w-8 h-8 bg-blue-500 text-white rounded-full font-semibold text-sm">
+                        +
+                      </div>
+                      <h4 className="font-semibold text-lg">New Promotional Message</h4>
+                    </div>
+                    <div>
+                      <Label>Message Title</Label>
                       <Input
-                        value={promo.title}
-                        onChange={(e) => updatePromotionalMessage(promo.id, 'title', e.target.value)}
+                        id="newPromoTitle"
                         placeholder="e.g., Spring Special Offer"
                         className="font-medium"
                       />
                     </div>
+                    <div>
+                      <Label>Message Content</Label>
+                      <textarea
+                        id="newPromoMessage"
+                        className="w-full border rounded-md px-3 py-2 min-h-[100px]"
+                        placeholder="Enter your promotional message here..."
+                      />
+                    </div>
+                    <div>
+                      <Label>Promotional Image (Optional)</Label>
+                      <Input
+                        type="file"
+                        id="newPromoImage"
+                        accept="image/*"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        onClick={() => {
+                          const titleInput = document.getElementById('newPromoTitle') as HTMLInputElement;
+                          const messageInput = document.getElementById('newPromoMessage') as HTMLTextAreaElement;
+                          const imageInput = document.getElementById('newPromoImage') as HTMLInputElement;
+                          
+                          if (!titleInput?.value.trim()) {
+                            notify.error('Error', 'Please enter a message title');
+                            return;
+                          }
+                          
+                          const file = imageInput?.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              addPromotionalMessage();
+                              const newPromo = settings.promotionalMessages[settings.promotionalMessages.length - 1];
+                              if (newPromo) {
+                                updatePromotionalMessage(newPromo.id, 'title', titleInput.value);
+                                updatePromotionalMessage(newPromo.id, 'message', messageInput.value);
+                                updatePromotionalMessage(newPromo.id, 'imageUrl', reader.result as string);
+                              }
+                              // Clear form
+                              titleInput.value = '';
+                              messageInput.value = '';
+                              imageInput.value = '';
+                              setIsAddingPromo(false);
+                            };
+                            reader.readAsDataURL(file);
+                          } else {
+                            addPromotionalMessage();
+                            const newPromo = settings.promotionalMessages[settings.promotionalMessages.length - 1];
+                            if (newPromo) {
+                              updatePromotionalMessage(newPromo.id, 'title', titleInput.value);
+                              updatePromotionalMessage(newPromo.id, 'message', messageInput.value);
+                            }
+                            // Clear form
+                            titleInput.value = '';
+                            messageInput.value = '';
+                            setIsAddingPromo(false);
+                          }
+                        }}
+                      >
+                        <Check className="mr-2 h-4 w-4" />
+                        Save Message
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsAddingPromo(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removePromotionalMessage(promo.id)}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
                 </div>
-              ))}
-              <Button onClick={addPromotionalMessage} variant="outline">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Promotional Message
-              </Button>
+              ) : (
+                <Button onClick={() => setIsAddingPromo(true)} variant="outline" className="w-full">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Promotional Message
+                </Button>
+              )}
             </div>
           </CardContent>
+          <CardFooter>
+            <Button onClick={handleSaveSettings} disabled={saving}>
+              {saving ? 'Saving...' : 'Save Settings'}
+            </Button>
+          </CardFooter>
         </Card>
       )}
 
@@ -1175,6 +1317,24 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg mb-4">
+                <div>
+                  <h4 className="font-medium">Auto-Assign Mechanics</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically assign mechanics when adding a new car if no mechanic is selected
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoAssignMechanics}
+                    onChange={(e) => setSettings({ ...settings, autoAssignMechanics: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+              
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div>
                   <h4 className="font-medium">Clock-In Feature</h4>

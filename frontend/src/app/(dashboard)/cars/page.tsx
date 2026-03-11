@@ -19,6 +19,7 @@ import {
 import { formatCurrency, formatDate, getStageLabel, getStageColor } from '@/lib/utils';
 import { Plus, Eye, Edit, Upload, X, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
+import { useNotify } from '@/hooks/useNotify';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface Car {
@@ -32,6 +33,8 @@ interface Car {
   stage: string;
   serviceType: string;
   services: string[];
+  customServiceDescription?: string;
+  customServiceAmount?: number;
   inspectedBy?: string;
   inspectorName?: string;
   assignedMechanicId?: string;
@@ -77,6 +80,7 @@ interface Settings {
 
 export default function CarsPage() {
   const toast = useToast();
+  const notify = useNotify();
   const [cars, setCars] = useState<Car[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStage, setFilterStage] = useState<string>('');
@@ -530,7 +534,21 @@ export default function CarsPage() {
       }
       
       const response = await api.get('/cars', { params });
-      const allCars = response.data.data.cars;
+      let allCars = response.data.data.cars;
+      
+      // Populate mechanic names
+      if (mechanics.length > 0) {
+        allCars = allCars.map((car: any) => {
+          if (car.assignedMechanicId) {
+            const mechanic = mechanics.find(m => m._id === car.assignedMechanicId);
+            return {
+              ...car,
+              assignedMechanicName: mechanic ? `${mechanic.firstName} ${mechanic.lastName}` : undefined
+            };
+          }
+          return car;
+        });
+      }
       
       // Filter out completed cars when in pending mode with no specific stage filter
       if (viewMode === 'pending' && !filterStage) {
@@ -683,7 +701,8 @@ export default function CarsPage() {
               name: addFormData.customerName,
               email: addFormData.customerEmail,
               phone: addFormData.customerPhone,
-              address: addFormData.customerAddress || undefined
+              address: addFormData.customerAddress || '',
+              gender: addFormData.customerGender || undefined
             },
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -695,6 +714,7 @@ export default function CarsPage() {
             return;
           }
           console.error('Customer creation failed:', error);
+          console.error('Error response:', error.response?.data);
           throw new Error('Failed to create customer');
         }
       }
@@ -703,31 +723,63 @@ export default function CarsPage() {
       const completionDate = addFormData.expectedCompletionDate || 
         new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       
-      await axios.post(
+      const carResponse = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/cars`,
         {
           customerId,
           customerName: addFormData.customerName,
           vehicleModel: addFormData.vehicleModel,
           vehiclePlate: addFormData.vehiclePlate,
-          vehicleYear: parseInt(addFormData.vehicleYear),
+          vehicleYear: parseInt(addFormData.vehicleYear) || new Date().getFullYear(),
           vehicleColor: addFormData.vehicleColor,
           serviceType: addFormData.serviceType,
           services: addFormData.services.length > 0 ? addFormData.services : ['Standard Service'],
           stage: addFormData.stage,
           assignedMechanicId: addFormData.assignedMechanicId || undefined,
-          estimatedCost: parseFloat(addFormData.estimatedCost),
+          estimatedCost: parseFloat(addFormData.estimatedCost) || 0,
           expectedCompletionDate: completionDate,
           damageAssessment: addFormData.damageAssessment || undefined,
           beforePhotos: beforePhotos,
           afterPhotos: afterPhotos,
           notes: addFormData.notes || undefined,
           customServiceDescription: addFormData.customServiceDescription || undefined,
+          customServiceAmount: addFormData.customServiceAmount ? parseFloat(addFormData.customServiceAmount) : undefined,
           inspectionNotes: addFormData.inspectionNotes || undefined,
           completionNotes: addFormData.completionNotes || undefined
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
+      const createdCar = carResponse.data.data;
+
+      // Generate invoice automatically
+      try {
+        const servicesList = addFormData.services.length > 0 
+          ? addFormData.services.join(', ') 
+          : 'Standard Service';
+        
+        await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/invoices`,
+          {
+            carId: createdCar._id,
+            customerId: customerId,
+            items: [{
+              description: `${addFormData.serviceType} - ${addFormData.vehicleModel} (${addFormData.vehiclePlate}) - Services: ${servicesList}`,
+              quantity: 1,
+              unitPrice: parseFloat(addFormData.estimatedCost),
+              total: parseFloat(addFormData.estimatedCost)
+            }],
+            subtotal: parseFloat(addFormData.estimatedCost),
+            tax: 0,
+            total: parseFloat(addFormData.estimatedCost),
+            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } catch (invoiceError) {
+        console.error('Failed to generate invoice:', invoiceError);
+        // Don't fail the whole operation if invoice generation fails
+      }
       
       // Reset form and close dialog
       setAddFormData({
@@ -759,10 +811,10 @@ export default function CarsPage() {
       setAfterPhotos([]);
       setIsAddDialogOpen(false);
       fetchCars();
-      toast.success('Service check-in completed successfully!');
+      notify.success('Car Added', `Service check-in completed successfully for ${addFormData.vehicleModel} (${addFormData.vehiclePlate})`);
     } catch (error) {
       console.error('Failed to add car:', error);
-      toast.error('Failed to add car. Please try again.');
+      notify.error('Failed to Add Car', 'Failed to add car. Please try again.');
     }
   };
 
@@ -2192,6 +2244,9 @@ export default function CarsPage() {
                           <span className="text-lg font-bold text-green-600">
                             {formatCurrency(
                               addFormData.services.reduce((total, serviceName) => {
+                                if (serviceName === 'Other') {
+                                  return total + (parseFloat(addFormData.customServiceAmount) || 0);
+                                }
                                 const service = settings.serviceTypes.find(st => st.name === serviceName);
                                 return total + (service?.basePrice || 0);
                               }, 0)
@@ -2296,6 +2351,9 @@ export default function CarsPage() {
                         step="0.01"
                         value={addFormData.estimatedCost || (settings?.serviceTypes && addFormData.services.length > 0 ? 
                           addFormData.services.reduce((total, serviceName) => {
+                            if (serviceName === 'Other') {
+                              return total + (parseFloat(addFormData.customServiceAmount) || 0);
+                            }
                             const service = settings.serviceTypes.find(st => st.name === serviceName);
                             return total + (service?.basePrice || 0);
                           }, 0) : 0)}
@@ -2338,6 +2396,9 @@ export default function CarsPage() {
                           <span className="font-medium">{formatCurrency(parseFloat(addFormData.estimatedCost) || 
                             (settings?.serviceTypes && addFormData.services.length > 0 ? 
                               addFormData.services.reduce((total, serviceName) => {
+                                if (serviceName === 'Other') {
+                                  return total + (parseFloat(addFormData.customServiceAmount) || 0);
+                                }
                                 const service = settings.serviceTypes.find(st => st.name === serviceName);
                                 return total + (service?.basePrice || 0);
                               }, 0) : 0))}</span>

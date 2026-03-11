@@ -90,23 +90,17 @@ export const clockOutSchema = Joi.object({
 });
 
 export const createCustomerSchema = Joi.object({
-  firstName: Joi.string().required(),
-  lastName: Joi.string().required(),
+  name: Joi.string().required(),
   email: Joi.string().email().required(),
   phone: Joi.string().required(),
-  
-  address: Joi.object({
-    street: Joi.string().optional(),
-    city: Joi.string().optional(),
-    state: Joi.string().optional(),
-    zipCode: Joi.string().optional()
-  }).optional(),
-  
-  vehicles: Joi.array().items(Joi.object({
-    model: Joi.string().required(),
-    plate: Joi.string().required(),
-    year: Joi.number().optional(),
-    color: Joi.string().optional()
+  address: Joi.string().optional().allow('', null),
+  gender: Joi.string().valid('male', 'female', 'other').optional(),
+  notes: Joi.string().optional().allow('', null),
+  serviceHistory: Joi.array().items(Joi.object({
+    date: Joi.date().required(),
+    carId: Joi.string().required(),
+    serviceDetails: Joi.string().required(),
+    cost: Joi.number().required()
   })).optional()
 });
 

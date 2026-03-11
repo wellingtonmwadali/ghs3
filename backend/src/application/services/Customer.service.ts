@@ -1,5 +1,6 @@
 import { CustomerRepository } from '../../infrastructure/repositories/Customer.repository';
 import { SettingsRepository } from '../../infrastructure/repositories/Settings.repository';
+import { emailService } from '../../infrastructure/services/Email.service';
 import { ICustomer } from '../../domain/entities/Customer';
 import { ICustomerDocument } from '../../infrastructure/models/Customer.model';
 import Joi from 'joi';
@@ -204,11 +205,29 @@ export class CustomerService {
           };
 
           if (deliveryMethod.email && customer.email) {
-            // TODO: Integrate with email service (e.g., SendGrid, AWS SES)
-            console.log(`[PROMO EMAIL] To: ${customer.email}`);
-            console.log(`Subject: ${promoMessage.title}`);
-            console.log(`Message: ${promoMessage.message}`);
-            result.methods.push('email');
+            try {
+              const emailSent = await emailService.sendPromotionalEmail({
+                to: customer.email,
+                customerName: customer.name,
+                title: promoMessage.title,
+                message: promoMessage.message || '',
+                imageUrl: promoMessage.imageUrl,
+                senderEmail: (settings as any).promotionalDeliveryMethod?.senderEmail
+              });
+              
+              if (emailSent) {
+                result.methods.push('email');
+                console.log(`[PROMO EMAIL] Successfully sent to: ${customer.email}`);
+              } else {
+                console.error(`[PROMO EMAIL] Failed to send to: ${customer.email}`);
+                result.status = 'failed';
+                result.reason = 'Email delivery failed';
+              }
+            } catch (error) {
+              console.error(`[PROMO EMAIL] Error sending to ${customer.email}:`, error);
+              result.status = 'failed';
+              result.reason = `Email error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            }
           }
 
           if (deliveryMethod.whatsapp && customer.phone) {

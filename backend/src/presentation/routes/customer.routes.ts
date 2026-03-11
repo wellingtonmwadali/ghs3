@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { CustomerController } from '../controllers/Customer.controller';
 import { authenticate } from '../middlewares/auth.middleware';
+import { validate } from '../middlewares/validation.middleware';
+import { createCustomerSchema } from '../../application/dto/validation.schemas';
 
 const router = Router();
 const customerController = new CustomerController();
@@ -9,7 +11,7 @@ const customerController = new CustomerController();
 router.use(authenticate);
 
 // Create customer
-router.post('/', customerController.createCustomer);
+router.post('/', validate(createCustomerSchema), customerController.createCustomer);
 
 // Get all customers with pagination and search
 router.get('/', customerController.getAllCustomers);

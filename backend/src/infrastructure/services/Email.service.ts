@@ -229,6 +229,85 @@ export class EmailService {
       html
     });
   }
+
+  async sendPromotionalEmail(options: {
+    to: string;
+    customerName: string;
+    title: string;
+    message: string;
+    imageUrl?: string;
+    senderEmail?: string;
+  }): Promise<boolean> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; }
+          .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center; }
+          .header h1 { margin: 0; font-size: 28px; }
+          .content { padding: 30px 20px; }
+          .greeting { font-size: 18px; color: #333; margin-bottom: 20px; }
+          .message { background: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea; }
+          .message p { margin: 10px 0; line-height: 1.8; }
+          .promo-image { width: 100%; max-width: 100%; height: auto; border-radius: 8px; margin: 20px 0; }
+          .footer { background: #f9fafb; padding: 20px; text-align: center; font-size: 14px; color: #666; }
+          .footer a { color: #667eea; text-decoration: none; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🎉 ${options.title}</h1>
+          </div>
+          <div class="content">
+            <p class="greeting">Dear ${options.customerName},</p>
+            <div class="message">
+              ${options.message.split('\n').map(line => `<p>${line}</p>`).join('')}
+            </div>
+            ${options.imageUrl ? `<img src="${options.imageUrl}" alt="Promotional Image" class="promo-image" />` : ''}
+            <p>We appreciate your continued patronage and look forward to serving you!</p>
+          </div>
+          <div class="footer">
+            <p><strong>GHS3 Garage Management System</strong></p>
+            <p>This is a promotional message. If you wish to unsubscribe, please <a href="#">click here</a>.</p>
+            <p>&copy; ${new Date().getFullYear()} All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    try {
+      if (!this.transporter) {
+        await this.initialize();
+      }
+      
+      if (!this.transporter) {
+        console.error('Email transporter not available');
+        return false;
+      }
+      
+      const settings = await SettingsModel.findOne();
+      const fromEmail = options.senderEmail || settings?.promotionalDeliveryMethod?.senderEmail || settings?.companyInfo?.email || 'noreply@ghs3.com';
+      const fromName = settings?.companyInfo?.name || 'GHS3 Garage';
+      
+      await this.transporter.sendMail({
+        from: `${fromName} <${fromEmail}>`,
+        to: options.to,
+        subject: options.title,
+        html,
+        text: `${options.title}\n\nDear ${options.customerName},\n\n${options.message}`
+      });
+      
+      console.log(`✅ Promotional email sent to ${options.to}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Failed to send promotional email to ${options.to}:`, error);
+      return false;
+    }
+  }
 }
 
 export const emailService = new EmailService();

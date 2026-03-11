@@ -61,18 +61,24 @@ export class InvoiceService {
 
     const invoiceData = invoice as any;
 
-    // Calculate new paid amount and balance
-    const newPaidAmount = invoiceData.paidAmount + paymentData.amount;
-    const newBalance = invoiceData.total - newPaidAmount;
+    // Add payment first
+    const updatedInvoice = await this.invoiceRepository.addPayment(invoiceId, paymentData);
+    
+    if (!updatedInvoice) {
+      throw new AppError('Failed to add payment', 500);
+    }
+
+    // Calculate new paid amount and balance using the updated invoice
+    const newPaidAmount = (updatedInvoice as any).paidAmount;
+    const newBalance = (updatedInvoice as any).total - newPaidAmount;
 
     // Determine payment status
     let paymentStatus: 'pending' | 'partial' | 'paid' = 'partial';
-    if (newPaidAmount >= invoiceData.total) {
+    if (newPaidAmount >= (updatedInvoice as any).total) {
       paymentStatus = 'paid';
+    } else if (newPaidAmount <= 0) {
+      paymentStatus = 'pending';
     }
-
-    // Add payment
-    const updatedInvoice = await this.invoiceRepository.addPayment(invoiceId, paymentData);
 
     // Update invoice status and balance
     await this.invoiceRepository.update(invoiceId, {
@@ -80,11 +86,13 @@ export class InvoiceService {
       paymentStatus
     });
 
-    // Update car payment info
-    await this.carRepository.update(invoiceData.carId.toString(), {
-      paidAmount: newPaidAmount,
-      paymentStatus
-    });
+    // Update car payment info if car exists
+    if (invoiceData.carId) {
+      await this.carRepository.update(invoiceData.carId.toString(), {
+        paidAmount: newPaidAmount,
+        paymentStatus
+      });
+    }
 
     return updatedInvoice;
   }

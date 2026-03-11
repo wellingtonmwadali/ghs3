@@ -10,7 +10,8 @@ import {
   CheckCircle, 
   Clock, 
   AlertCircle,
-  Calendar
+  Calendar,
+  Download
 } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/toast';
@@ -72,6 +73,68 @@ export default function ReportsPage() {
     }
   };
 
+  const downloadReport = () => {
+    if (!stats) return;
+
+    // Create CSV content
+    let csvContent = "GHS3 Garage - Financial Report\\n\\n";
+    csvContent += `Report Generated: ${new Date().toLocaleString()}\\n`;
+    csvContent += `Period: ${dateRange}\\n\\n`;
+    
+    // Overview Section
+    csvContent += "=== OVERVIEW ===\\n";
+    csvContent += `Total Invoices (This Month),${stats.totalInvoicesThisMonth}\\n`;
+    csvContent += `Revenue (This Month),${stats.revenueThisMonth}\\n`;
+    csvContent += `Revenue Trend,${stats.revenueTrend}%\\n`;
+    csvContent += `Paid Invoices,${stats.paidInvoices}\\n`;
+    csvContent += `Unpaid Invoices,${stats.unpaidInvoices}\\n`;
+    csvContent += `Partial Invoices,${stats.partialInvoices}\\n`;
+    csvContent += `Average Invoice Value,${stats.averageInvoiceValue}\\n`;
+    csvContent += `Total Revenue (All Time),${stats.totalRevenue}\\n\\n`;
+
+    // Monthly Revenue Section
+    csvContent += "=== MONTHLY REVENUE TREND ===\\n";
+    csvContent += "Month,Revenue,Invoice Count\\n";
+    if (stats.monthlyRevenue && stats.monthlyRevenue.length > 0) {
+      stats.monthlyRevenue.forEach(month => {
+        csvContent += `${month.month},${month.revenue},${month.invoiceCount}\\n`;
+      });
+    }
+    csvContent += "\\n";
+
+    // Payment Methods Section
+    csvContent += "=== PAYMENT METHOD DISTRIBUTION ===\\n";
+    csvContent += "Method,Amount,Transaction Count\\n";
+    if (stats.paymentMethodDistribution && stats.paymentMethodDistribution.length > 0) {
+      stats.paymentMethodDistribution.forEach(method => {
+        csvContent += `${method.method},${method.amount},${method.count}\\n`;
+      });
+    }
+    csvContent += "\\n";
+
+    // Top Clients Section
+    csvContent += "=== TOP PAYING CLIENTS ===\\n";
+    csvContent += "Rank,Customer Name,Total Paid,Invoice Count\\n";
+    if (stats.topPayingClients && stats.topPayingClients.length > 0) {
+      stats.topPayingClients.forEach((client, idx) => {
+        csvContent += `${idx + 1},${client.customerName},${client.totalPaid},${client.invoiceCount}\\n`;
+      });
+    }
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `financial_report_${dateRange}_${Date.now()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success('Report downloaded successfully!');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -103,6 +166,13 @@ export default function ReportsPage() {
             <p className="text-gray-600">Track revenue, invoices, and payment trends</p>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={downloadReport}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Download Report
+            </button>
             <select
               value={dateRange}
               onChange={(e) => {

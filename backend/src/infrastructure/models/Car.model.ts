@@ -19,6 +19,8 @@ const CarSchema = new Schema<ICarDocument>(
       required: true 
     },
     services: [{ type: String }],
+    customServiceDescription: { type: String },
+    customServiceAmount: { type: Number },
     
     stage: {
       type: String,
@@ -61,6 +63,8 @@ const CarSchema = new Schema<ICarDocument>(
     afterPhotos: [{ type: String }],
     
     notes: { type: String },
+    inspectionNotes: { type: String },
+    completionNotes: { type: String },
     warranty: {
       hasWarranty: { type: Boolean, default: false },
       expiryDate: { type: Date },
