@@ -34,18 +34,26 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
   const [companyLogo, setCompanyLogo] = useState<string>('');
+  const [companyName, setCompanyName] = useState<string>('');
 
   useEffect(() => {
-    // Load logo from localStorage
+    // Load logo and company name from localStorage
     const savedLogo = localStorage.getItem('companyLogo');
+    const savedName = localStorage.getItem('companyName');
     if (savedLogo) {
       setCompanyLogo(savedLogo);
+    }
+    if (savedName) {
+      setCompanyName(savedName);
     }
 
     // Listen for storage changes to update logo in real-time
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'companyLogo') {
         setCompanyLogo(e.newValue || '');
+      }
+      if (e.key === 'companyName') {
+        setCompanyName(e.newValue || '');
       }
     };
 
@@ -54,6 +62,9 @@ export default function Sidebar() {
     // Also listen for custom event for same-tab updates
     const handleLogoUpdate = ((e: CustomEvent) => {
       setCompanyLogo(e.detail.logo);
+      if (e.detail.name) {
+        setCompanyName(e.detail.name);
+      }
     }) as EventListener;
     
     window.addEventListener('logoUpdated', handleLogoUpdate);
@@ -68,13 +79,15 @@ export default function Sidebar() {
     <div className="flex h-screen w-64 flex-col border-r bg-background">
       <div className="flex h-16 items-center border-b px-6">
         {companyLogo ? (
-          <div className="flex items-center gap-3 w-full">
+          <div className="flex flex-col items-center gap-1 w-full">
             <img 
               src={companyLogo} 
               alt="Company Logo" 
               className="h-10 w-10 object-contain"
             />
-            <h1 className="text-xl font-semibold tracking-tight">GHS3</h1>
+            {companyName && (
+              <span className="text-xs font-medium text-gray-700">{companyName}</span>
+            )}
           </div>
         ) : (
           <h1 className="text-xl font-semibold tracking-tight">GHS3</h1>

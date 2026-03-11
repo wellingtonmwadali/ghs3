@@ -41,7 +41,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 45,
           averageTurnaroundTime: 48,
-          efficiencyScore: 92,
           customerRating: 4.7
         },
         laborHoursLogged: 520,
@@ -62,7 +61,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 67,
           averageTurnaroundTime: 6,
-          efficiencyScore: 95,
           customerRating: 4.9
         },
         laborHoursLogged: 380,
@@ -83,7 +81,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 38,
           averageTurnaroundTime: 12,
-          efficiencyScore: 88,
           customerRating: 4.6
         },
         laborHoursLogged: 410,
@@ -104,7 +101,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 52,
           averageTurnaroundTime: 24,
-          efficiencyScore: 90,
           customerRating: 4.8
         },
         laborHoursLogged: 480,
@@ -125,7 +121,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 41,
           averageTurnaroundTime: 36,
-          efficiencyScore: 89,
           customerRating: 4.7
         },
         laborHoursLogged: 445,
@@ -146,7 +141,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 58,
           averageTurnaroundTime: 8,
-          efficiencyScore: 93,
           customerRating: 4.9
         },
         laborHoursLogged: 390,
@@ -167,7 +161,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 35,
           averageTurnaroundTime: 14,
-          efficiencyScore: 87,
           customerRating: 4.6
         },
         laborHoursLogged: 370,
@@ -188,7 +181,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 48,
           averageTurnaroundTime: 20,
-          efficiencyScore: 91,
           customerRating: 4.8
         },
         laborHoursLogged: 450,
@@ -209,7 +201,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 39,
           averageTurnaroundTime: 40,
-          efficiencyScore: 88,
           customerRating: 4.7
         },
         laborHoursLogged: 420,
@@ -230,7 +221,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 62,
           averageTurnaroundTime: 7,
-          efficiencyScore: 94,
           customerRating: 4.8
         },
         laborHoursLogged: 400,
@@ -251,7 +241,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 33,
           averageTurnaroundTime: 15,
-          efficiencyScore: 86,
           customerRating: 4.5
         },
         laborHoursLogged: 355,
@@ -272,7 +261,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 44,
           averageTurnaroundTime: 28,
-          efficiencyScore: 89,
           customerRating: 4.7
         },
         laborHoursLogged: 465,
@@ -293,7 +281,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 37,
           averageTurnaroundTime: 44,
-          efficiencyScore: 87,
           customerRating: 4.6
         },
         laborHoursLogged: 410,
@@ -314,7 +301,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 55,
           averageTurnaroundTime: 9,
-          efficiencyScore: 92,
           customerRating: 4.8
         },
         laborHoursLogged: 385,
@@ -335,7 +321,6 @@ const seedDatabase = async () => {
         performance: {
           totalJobsCompleted: 31,
           averageTurnaroundTime: 16,
-          efficiencyScore: 85,
           customerRating: 4.5
         },
         laborHoursLogged: 345,

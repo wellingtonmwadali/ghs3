@@ -89,6 +89,31 @@ export class AuthService {
     };
   }
 
+  async getAllUsers() {
+    const users = await this.userRepository.findAll();
+    return users.map(user => ({
+      id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      mechanicId: user.mechanicId,
+      lastLogin: user.lastLogin
+    }));
+  }
+
+  async toggleUserActive(id: string) {
+    const user = await this.userRepository.toggleActive(id);
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+    return {
+      id: user._id,
+      isActive: user.isActive
+    };
+  }
+
   private generateToken(userId: string, role: string): string {
     if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'your-super-secret-jwt-key') {
       throw new Error('JWT_SECRET must be set in environment variables for security');

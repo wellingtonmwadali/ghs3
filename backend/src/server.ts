@@ -24,6 +24,7 @@ import settingsRoutes from './presentation/routes/settings.routes';
 import bookingRoutes from './presentation/routes/booking.routes';
 import inspectionRoutes from './presentation/routes/inspection.routes';
 import attendanceRoutes from './presentation/routes/attendance.routes';
+import notificationRoutes from './presentation/routes/notification.routes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
@@ -76,6 +77,7 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/inspections', inspectionRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Error handling
 app.use(notFound);

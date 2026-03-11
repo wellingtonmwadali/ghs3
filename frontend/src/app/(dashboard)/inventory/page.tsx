@@ -28,13 +28,22 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 interface InventoryItem {
   _id: string;
   itemName: string;
-  sku: string;
-  category: string;
+  category: 'paint' | 'chemical' | 'film' | 'tool' | 'other';
+  sku?: string;
+  brand?: string;
   quantity: number;
+  unit: string;
   minStockLevel: number;
   costPerUnit: number;
-  supplier: string;
+  supplier?: {
+    name: string;
+    contact: string;
+    email?: string;
+  };
   lastRestocked?: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export default function InventoryPage() {
@@ -52,11 +61,15 @@ export default function InventoryPage() {
   const [formData, setFormData] = useState({
     itemName: '',
     sku: '',
+    brand: '',
     category: 'paint',
     quantity: '',
+    unit: 'liters',
     minStockLevel: '',
     costPerUnit: '',
-    supplier: ''
+    supplierName: '',
+    supplierContact: '',
+    supplierEmail: ''
   });
 
   useEffect(() => {
@@ -89,7 +102,7 @@ export default function InventoryPage() {
       filtered = filtered.filter(
         (item) =>
           item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.sku.toLowerCase().includes(searchTerm.toLowerCase())
+          item.sku?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -114,11 +127,15 @@ export default function InventoryPage() {
     setFormData({
       itemName: '',
       sku: '',
+      brand: '',
       category: 'paint',
       quantity: '',
+      unit: 'liters',
       minStockLevel: '',
       costPerUnit: '',
-      supplier: ''
+      supplierName: '',
+      supplierContact: '',
+      supplierEmail: ''
     });
     setIsAddEditDialogOpen(true);
   };
@@ -128,12 +145,16 @@ export default function InventoryPage() {
     setSelectedItem(item);
     setFormData({
       itemName: item.itemName,
-      sku: item.sku,
+      sku: item.sku || '',
+      brand: item.brand || '',
       category: item.category,
       quantity: item.quantity.toString(),
+      unit: item.unit || 'liters',
       minStockLevel: item.minStockLevel.toString(),
       costPerUnit: item.costPerUnit.toString(),
-      supplier: item.supplier
+      supplierName: item.supplier?.name || '',
+      supplierContact: item.supplier?.contact || '',
+      supplierEmail: item.supplier?.email || ''
     });
     setIsAddEditDialogOpen(true);
   };
@@ -157,13 +178,18 @@ export default function InventoryPage() {
 
     const payload = {
       itemName: formData.itemName,
-      sku: formData.sku,
+      sku: formData.sku || undefined,
+      brand: formData.brand || undefined,
       category: formData.category,
       quantity: parseInt(formData.quantity),
+      unit: formData.unit,
       minStockLevel: parseInt(formData.minStockLevel),
       costPerUnit: parseFloat(formData.costPerUnit),
-      supplier: formData.supplier,
-      unit: 'units',
+      supplier: formData.supplierName ? {
+        name: formData.supplierName,
+        contact: formData.supplierContact,
+        email: formData.supplierEmail || undefined
+      } : undefined,
       isActive: true
     };
 
@@ -242,7 +268,7 @@ export default function InventoryPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              Ksh {items.reduce((sum, item) => sum + (item.quantity * item.costPerUnit), 0).toLocaleString()}
+              Ksh {items.reduce((sum, item) => sum + ((item.quantity || 0) * (item.costPerUnit || 0)), 0).toLocaleString()}
             </div>
           </CardContent>
         </Card>
@@ -306,7 +332,7 @@ export default function InventoryPage() {
                   <TableCell className="capitalize">{item.category}</TableCell>
                   <TableCell>{item.quantity}</TableCell>
                   <TableCell>{item.minStockLevel}</TableCell>
-                  <TableCell>Ksh {item.costPerUnit.toLocaleString()}</TableCell>
+                  <TableCell>Ksh {(item.costPerUnit || 0).toLocaleString()}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded-full text-xs ${getStockBadge(item)}`}>
                       {getStockStatus(item)}
@@ -353,16 +379,30 @@ export default function InventoryPage() {
                 </div>
                 <div>
                   <Label className="text-gray-600">SKU</Label>
-                  <p className="font-medium">{selectedItem.sku}</p>
+                  <p className="font-medium">{selectedItem.sku || 'N/A'}</p>
+                </div>
+                <div>
+                  <Label className="text-gray-600">Brand</Label>
+                  <p className="font-medium">{selectedItem.brand || 'N/A'}</p>
                 </div>
                 <div>
                   <Label className="text-gray-600">Category</Label>
                   <p className="font-medium capitalize">{selectedItem.category}</p>
                 </div>
                 <div>
-                  <Label className="text-gray-600">Supplier</Label>
-                  <p className="font-medium">{selectedItem.supplier}</p>
+                  <Label className="text-gray-600">Unit</Label>
+                  <p className="font-medium">{selectedItem.unit}</p>
                 </div>
+                {selectedItem.supplier && (
+                  <div className="col-span-2">
+                    <Label className="text-gray-600">Supplier</Label>
+                    <div className="font-medium">
+                      <p>{selectedItem.supplier.name}</p>
+                      <p className="text-sm text-gray-500">{selectedItem.supplier.contact}</p>
+                      {selectedItem.supplier.email && <p className="text-sm text-gray-500">{selectedItem.supplier.email}</p>}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <Label className="text-gray-600">Quantity in Stock</Label>
                   <p className="font-medium text-2xl">{selectedItem.quantity}</p>
@@ -373,11 +413,11 @@ export default function InventoryPage() {
                 </div>
                 <div>
                   <Label className="text-gray-600">Unit Price</Label>
-                  <p className="font-medium">Ksh {selectedItem.costPerUnit.toLocaleString()}</p>
+                  <p className="font-medium">Ksh {(selectedItem.costPerUnit || 0).toLocaleString()}</p>
                 </div>
                 <div>
                   <Label className="text-gray-600">Total Value</Label>
-                  <p className="font-medium">Ksh {(selectedItem.quantity * selectedItem.costPerUnit).toLocaleString()}</p>
+                  <p className="font-medium">Ksh {((selectedItem.quantity || 0) * (selectedItem.costPerUnit || 0)).toLocaleString()}</p>
                 </div>
                 {selectedItem.lastRestocked && (
                   <div className="col-span-2">
@@ -421,9 +461,18 @@ export default function InventoryPage() {
                     id="sku"
                     value={formData.sku}
                     onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                    required
                   />
                 </div>
+                <div>
+                  <Label htmlFor="brand">Brand</Label>
+                  <Input
+                    id="brand"
+                    value={formData.brand}
+                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="category">Category</Label>
                   <select
@@ -434,10 +483,27 @@ export default function InventoryPage() {
                     required
                   >
                     <option value="paint">Paint</option>
-                    <option value="coating">Coating</option>
+                    <option value="chemical">Chemical</option>
                     <option value="film">Film</option>
-                    <option value="wrap">Wrap</option>
-                    <option value="detailing">Detailing</option>
+                    <option value="tool">Tool</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="unit">Unit</Label>
+                  <select
+                    id="unit"
+                    value={formData.unit}
+                    onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                    className="w-full border rounded-md px-3 py-2"
+                    required
+                  >
+                    <option value="liters">Liters</option>
+                    <option value="gallons">Gallons</option>
+                    <option value="kg">Kilograms</option>
+                    <option value="pieces">Pieces</option>
+                    <option value="rolls">Rolls</option>
+                    <option value="bottles">Bottles</option>
                   </select>
                 </div>
               </div>
@@ -474,14 +540,35 @@ export default function InventoryPage() {
                   required
                 />
               </div>
-              <div>
-                <Label htmlFor="supplier">Supplier</Label>
-                <Input
-                  id="supplier"
-                  value={formData.supplier}
-                  onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                  required
-                />
+              <div className="grid gap-2">
+                <Label className="font-semibold">Supplier Information</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="supplierName">Supplier Name</Label>
+                    <Input
+                      id="supplierName"
+                      value={formData.supplierName}
+                      onChange={(e) => setFormData({ ...formData, supplierName: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="supplierContact">Contact</Label>
+                    <Input
+                      id="supplierContact"
+                      value={formData.supplierContact}
+                      onChange={(e) => setFormData({ ...formData, supplierContact: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="supplierEmail">Email (Optional)</Label>
+                  <Input
+                    id="supplierEmail"
+                    type="email"
+                    value={formData.supplierEmail}
+                    onChange={(e) => setFormData({ ...formData, supplierEmail: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
             <DialogFooter>

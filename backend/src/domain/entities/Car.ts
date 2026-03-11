@@ -3,6 +3,7 @@ export interface ICar {
   _id?: string;
   customerId: string;
   customerName: string;
+  customerGender?: 'male' | 'female' | 'other';
   vehicleModel: string;
   vehiclePlate: string;
   vehicleYear: number;
@@ -13,6 +14,9 @@ export interface ICar {
   
   stage: 'waiting_inspection' | 'in_repair' | 'painting' | 'detailing' | 'quality_check' | 'ready_pickup' | 'completed';
   statusProgress: number;
+  
+  inspectedBy?: string; // User ID who performed the inspection
+  inspectorName?: string; // Name of inspector
   
   assignedMechanicId?: string;
   assignedMechanicName?: string;

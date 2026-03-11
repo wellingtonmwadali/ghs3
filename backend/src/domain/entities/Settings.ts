@@ -55,6 +55,23 @@ export interface ISettings {
     paymentReceived: boolean;
     emailEnabled: boolean;
     whatsappEnabled: boolean;
+    recipients: {
+      type: 'single' | 'multiple';
+      emails: string[]; // Email addresses to receive notifications
+      userIds?: string[]; // User IDs for in-app notifications
+    };
+    inventory: {
+      enabled: boolean;
+      checkFrequency: 'hourly' | 'daily' | 'weekly'; // How often to check
+      minStockLevelTrigger: boolean; // Alert when below minStockLevel
+      customThreshold?: number; // Optional custom threshold percentage
+    };
+    lateServices: {
+      enabled: boolean;
+      daysOverdue: number; // Alert when X days past expected completion
+      checkFrequency: 'daily' | 'twice_daily';
+      notifyCustomer: boolean; // Also notify customer
+    };
   };
   rolePermissions?: {
     owner: string[];

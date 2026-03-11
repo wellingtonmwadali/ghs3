@@ -47,6 +47,9 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<RevenueStats | null>(null);
   const [dateRange, setDateRange] = useState('thisMonth');
+  const [showCustomDialog, setShowCustomDialog] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   useEffect(() => {
     fetchRevenueStats();
@@ -102,7 +105,13 @@ export default function ReportsPage() {
           <div className="flex gap-2">
             <select
               value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
+              onChange={(e) => {
+                if (e.target.value === 'custom') {
+                  setShowCustomDialog(true);
+                } else {
+                  setDateRange(e.target.value);
+                }
+              }}
               className="border rounded-md px-3 py-2"
             >
               <option value="thisMonth">This Month</option>
@@ -110,6 +119,7 @@ export default function ReportsPage() {
               <option value="last3Months">Last 3 Months</option>
               <option value="last6Months">Last 6 Months</option>
               <option value="thisYear">This Year</option>
+              <option value="custom">Custom Period</option>
             </select>
           </div>
         </div>
@@ -201,7 +211,7 @@ export default function ReportsPage() {
                       <span className="font-medium">{month.month}</span>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">Ksh {month.revenue.toLocaleString()}</p>
+                      <p className="font-bold">Ksh {(month.revenue || 0).toLocaleString()}</p>
                       <p className="text-sm text-gray-500">{month.invoiceCount} invoices</p>
                     </div>
                   </div>
@@ -229,7 +239,7 @@ export default function ReportsPage() {
                       <span className="font-medium capitalize">{method.method}</span>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">Ksh {method.amount.toLocaleString()}</p>
+                      <p className="font-bold">Ksh {(method.amount || 0).toLocaleString()}</p>
                       <p className="text-sm text-gray-500">{method.count} transactions</p>
                     </div>
                   </div>
@@ -266,7 +276,7 @@ export default function ReportsPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-green-600">Ksh {client.totalPaid.toLocaleString()}</p>
+                    <p className="font-bold text-green-600">Ksh {(client.totalPaid || 0).toLocaleString()}</p>
                   </div>
                 </div>
               ))

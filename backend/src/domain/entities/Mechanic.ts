@@ -15,7 +15,6 @@ export interface IMechanic {
   performance: {
     totalJobsCompleted: number;
     averageTurnaroundTime: number; // in hours
-    efficiencyScore: number; // 0-100
     customerRating: number; // 0-5
   };
   

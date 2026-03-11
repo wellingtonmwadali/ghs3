@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { formatCurrency, formatDate, getStageLabel, getStageColor } from '@/lib/utils';
-import { Plus, Eye, Edit, Upload, X } from 'lucide-react';
+import { Plus, Eye, Edit, Upload, X, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
@@ -32,6 +32,8 @@ interface Car {
   stage: string;
   serviceType: string;
   services: string[];
+  inspectedBy?: string;
+  inspectorName?: string;
   assignedMechanicId?: string;
   assignedMechanicName?: string;
   estimatedCost: number;
@@ -104,6 +106,9 @@ export default function CarsPage() {
     requiredServices: [] as Array<{ name: string; description: string; price: number }>,
     additionalNotes: ''
   });
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
   const [editFormData, setEditFormData] = useState({
     vehicleModel: '',
     vehiclePlate: '',
@@ -128,6 +133,7 @@ export default function CarsPage() {
     customerEmail: '',
     customerPhone: '',
     customerAddress: '',
+    customerGender: '' as '' | 'male' | 'female' | 'other',
     vehicleModel: '',
     vehiclePlate: '',
     vehicleYear: '',
@@ -135,6 +141,7 @@ export default function CarsPage() {
     serviceType: 'colour_repair',
     services: [] as string[],
     customServiceDescription: '',
+    customServiceAmount: '',
     stage: 'waiting_inspection',
     assignedMechanicId: '',
     estimatedCost: '',
@@ -260,8 +267,18 @@ export default function CarsPage() {
 
   const handleGenerateInvoice = async () => {
     if (!selectedCar) return;
-    
+    if (generatingInvoice) return; // Prevent multiple clicks
+
     try {
+      setGeneratingInvoice(true);
+
+      // Check if invoice already exists for this car
+      const checkResponse = await api.get(`/invoices?carId=${selectedCar._id}`);
+      if (checkResponse.data.data && checkResponse.data.data.length > 0) {
+        toast.error('Invoice already exists for this vehicle');
+        setGeneratingInvoice(false);
+        return;
+      }
       // Build items array from selected services
       const items = [];
       
@@ -311,7 +328,7 @@ export default function CarsPage() {
         total,
         paidAmount: selectedCar.paidAmount || 0,
         dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        notes: selectedCar.notes || ''
+        ...(selectedCar.notes && { notes: selectedCar.notes })
       };
       
       console.log('Sending invoice data:', invoiceData);
@@ -335,6 +352,41 @@ export default function CarsPage() {
                           error.response?.data?.error || 
                           'Failed to generate invoice';
       toast.error(errorMessage);
+    } finally {
+      setGeneratingInvoice(false);
+    }
+  };
+
+  const handleRecordPayment = async () => {
+    if (!selectedCar || !paymentAmount) return;
+
+    try {
+      const newPaidAmount = selectedCar.paidAmount + parseFloat(paymentAmount);
+      let paymentStatus: 'pending' | 'partial' | 'paid' = 'pending';
+      
+      if (newPaidAmount >= selectedCar.estimatedCost) {
+        paymentStatus = 'paid';
+      } else if (newPaidAmount > 0) {
+        paymentStatus = 'partial';
+      }
+
+      await api.put(`/cars/${selectedCar._id}`, {
+        paidAmount: newPaidAmount,
+        paymentStatus
+      });
+
+      toast.success('Payment recorded successfully!');
+      setPaymentAmount('');
+      setIsRecordingPayment(false);
+      
+      // Refresh data
+      fetchCars();
+      if (selectedCar._id) {
+        await handleViewCar(selectedCar._id);
+      }
+    } catch (error: any) {
+      console.error('Failed to record payment:', error);
+      toast.error(error.response?.data?.message || 'Failed to record payment');
     }
   };
 
@@ -521,6 +573,23 @@ export default function CarsPage() {
     }
   };
 
+  const handleDeleteCar = async (carId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this car? This action cannot be undone.')) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/cars/${carId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Car deleted successfully');
+      fetchCars();
+    } catch (error: any) {
+      console.error('Error deleting car:', error);
+      toast.error(error.response?.data?.message || 'Failed to delete car');
+    }
+  };
+
   const handleEditCar = async (car: Car) => {
     setSelectedCar(car);
     setBeforePhotos(car.beforePhotos || []);
@@ -666,19 +735,21 @@ export default function CarsPage() {
         customerEmail: '',
         customerPhone: '',
         customerAddress: '',
+        customerGender: '' as '' | 'male' | 'female' | 'other',
         vehicleModel: '',
         vehiclePlate: '',
         vehicleYear: '',
         vehicleColor: '',
         serviceType: 'colour_repair',
         services: [],
+        customServiceDescription: '',
+        customServiceAmount: '',
         stage: 'waiting_inspection',
         assignedMechanicId: '',
         estimatedCost: '',
         damageAssessment: '',
         notes: '',
         expectedCompletionDate: '',
-        customServiceDescription: '',
         inspectionNotes: '',
         completionNotes: ''
       });
@@ -823,6 +894,9 @@ export default function CarsPage() {
                     <Button variant="ghost" size="icon" onClick={() => handleViewCar(car._id)}>
                       <Eye className="h-4 w-4" />
                     </Button>
+                    <Button variant="ghost" size="icon" onClick={(e) => handleDeleteCar(car._id, e)}>
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -964,6 +1038,12 @@ export default function CarsPage() {
                         <Label className="text-gray-600">Assigned Mechanic</Label>
                         <p className="font-medium">{selectedCar.assignedMechanicName || '—'}</p>
                       </div>
+                      {selectedCar.inspectorName && (
+                        <div>
+                          <Label className="text-gray-600">Inspected By</Label>
+                          <p className="font-medium">{selectedCar.inspectorName}</p>
+                        </div>
+                      )}
                       <div>
                         <Label className="text-gray-600">Progress</Label>
                         <div className="flex items-center gap-2">
@@ -1008,9 +1088,13 @@ export default function CarsPage() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold">Payment Information</h3>
-                    <Button onClick={handleGenerateInvoice} size="sm">
+                    <Button 
+                      onClick={handleGenerateInvoice} 
+                      size="sm"
+                      disabled={generatingInvoice}
+                    >
                       <Plus className="h-4 w-4 mr-2" />
-                      Generate Invoice
+                      {generatingInvoice ? 'Generating...' : 'Generate Invoice'}
                     </Button>
                   </div>
                   <div>
@@ -1043,6 +1127,69 @@ export default function CarsPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Record Payment Section */}
+                  {selectedCar.paymentStatus !== 'paid' && (
+                    <div className="border-t pt-6">
+                      {!isRecordingPayment ? (
+                        <Button 
+                          onClick={() => setIsRecordingPayment(true)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Record Payment
+                        </Button>
+                      ) : (
+                        <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+                          <h4 className="font-semibold">Record New Payment</h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="paymentAmount">Payment Amount (Ksh)</Label>
+                              <Input
+                                id="paymentAmount"
+                                type="number"
+                                value={paymentAmount}
+                                onChange={(e) => setPaymentAmount(e.target.value)}
+                                placeholder="Enter amount"
+                                min="0"
+                                step="0.01"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-gray-600">After Payment</Label>
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="text-sm">Paid:</span>
+                                <span className="font-semibold text-green-600">
+                                  {formatCurrency(selectedCar.paidAmount + (parseFloat(paymentAmount) || 0))}
+                                </span>
+                                <span className="text-sm text-gray-500">
+                                  / {formatCurrency(selectedCar.estimatedCost)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={handleRecordPayment}
+                              disabled={!paymentAmount || parseFloat(paymentAmount) <= 0}
+                            >
+                              Save Payment
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              onClick={() => {
+                                setIsRecordingPayment(false);
+                                setPaymentAmount('');
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1135,6 +1282,16 @@ export default function CarsPage() {
                             <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded text-sm font-medium">
                               COMPLETED
                             </span>
+                          </div>
+                          {selectedCar.assignedMechanicName && (
+                            <div>
+                              <Label className="text-gray-600 text-sm">Assigned Worker</Label>
+                              <p className="font-medium">{selectedCar.assignedMechanicName}</p>
+                            </div>
+                          )}
+                          <div>
+                            <Label className="text-gray-600 text-sm">Days in Garage</Label>
+                            <p className="font-medium">{selectedCar.daysInGarage} days</p>
                           </div>
                         </div>
                       </div>
@@ -1469,9 +1626,14 @@ export default function CarsPage() {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-md font-semibold">Payment Information</h3>
                     {selectedCar && (
-                      <Button type="button" onClick={handleGenerateInvoice} size="sm">
+                      <Button 
+                        type="button" 
+                        onClick={handleGenerateInvoice} 
+                        size="sm"
+                        disabled={generatingInvoice}
+                      >
                         <Plus className="h-4 w-4 mr-2" />
-                        Generate Invoice
+                        {generatingInvoice ? 'Generating...' : 'Generate Invoice'}
                       </Button>
                     )}
                   </div>
@@ -1777,6 +1939,21 @@ export default function CarsPage() {
                         />
                       </div>
                       <div>
+                        <Label htmlFor="customerGender">Gender</Label>
+                        <select
+                          id="customerGender"
+                          value={addFormData.customerGender || ''}
+                          onChange={(e) => setAddFormData({ ...addFormData, customerGender: e.target.value as 'male' | 'female' | 'other' | '' })}
+                          className="w-full border rounded-md px-3 py-2"
+                          disabled={!isNewCustomer}
+                        >
+                          <option value="">Select gender</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      <div>
                         <Label htmlFor="customerAddress">Address (Optional)</Label>
                         <Input
                           id="customerAddress"
@@ -1849,7 +2026,7 @@ export default function CarsPage() {
                 <div className="space-y-4">
                   <h3 className="text-md font-semibold">Service Information</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    {/* <div>
                       <Label htmlFor="addServiceType">Service Type *</Label>
                       <select
                         id="addServiceType"
@@ -1872,40 +2049,42 @@ export default function CarsPage() {
                         <option value="clean_shine">Clean & Shine</option>
                         <option value="coat_guard">Coat & Guard</option>
                       </select>
-                    </div>
-                    <div>
-                      <Label htmlFor="addStage">Initial Stage *</Label>
-                      <select
-                        id="addStage"
-                        value={addFormData.stage}
-                        onChange={(e) => setAddFormData({ ...addFormData, stage: e.target.value })}
-                        className="w-full border rounded-md px-3 py-2"
-                        required
-                      >
-                        {stages.filter(s => s.value !== '' && s.value !== 'completed').map(stage => (
-                          <option key={stage.value} value={stage.value}>
-                            {stage.label}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">Default: Waiting Inspection</p>
-                    </div>
-                    <div className="col-span-2">
-                      <Label htmlFor="addAssignedMechanic">Assign Mechanic (Optional)</Label>
-                      <select
-                        id="addAssignedMechanic"
-                        value={addFormData.assignedMechanicId}
-                        onChange={(e) => setAddFormData({ ...addFormData, assignedMechanicId: e.target.value })}
-                        className="w-full border rounded-md px-3 py-2"
-                      >
-                        <option value="">No mechanic assigned</option>
-                        {mechanics.map(mechanic => (
-                          <option key={mechanic._id} value={mechanic._id}>
-                            {mechanic.firstName} {mechanic.lastName} - {mechanic.specialization}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">Auto-assign if left empty</p>
+                    </div> */}
+                    <div className="flex gap-4">
+                      <div className="flex-1">
+                        <Label htmlFor="addStage">Initial Stage *</Label>
+                        <select
+                          id="addStage"
+                          value={addFormData.stage}
+                          onChange={(e) => setAddFormData({ ...addFormData, stage: e.target.value })}
+                          className="w-full border rounded-md px-3 py-2"
+                          required
+                        >
+                          {stages.filter(s => s.value !== '' && s.value !== 'completed').map(stage => (
+                            <option key={stage.value} value={stage.value}>
+                              {stage.label}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">Default: Waiting Inspection</p>
+                      </div>
+                      <div className="flex-1">
+                        <Label htmlFor="addAssignedMechanic">Assign Mechanic (Optional)</Label>
+                        <select
+                          id="addAssignedMechanic"
+                          value={addFormData.assignedMechanicId}
+                          onChange={(e) => setAddFormData({ ...addFormData, assignedMechanicId: e.target.value })}
+                          className="w-full border rounded-md px-3 py-2"
+                        >
+                          <option value="">No mechanic assigned</option>
+                          {mechanics.map(mechanic => (
+                            <option key={mechanic._id} value={mechanic._id}>
+                              {mechanic.firstName} {mechanic.lastName} - {mechanic.specialization}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">Auto-assign if left empty</p>
+                      </div>
                     </div>
                     <div className="col-span-2">
                       <Label htmlFor="addExpectedCompletionDate">Expected Completion Date</Label>
@@ -1977,16 +2156,31 @@ export default function CarsPage() {
 
                     {/* Custom Service Description */}
                     {addFormData.services.includes('Other') && (
-                      <div className="mt-3">
-                        <Label htmlFor="customServiceDesc">Describe Custom Service *</Label>
-                        <Input
-                          id="customServiceDesc"
-                          value={addFormData.customServiceDescription}
-                          onChange={(e) => setAddFormData({ ...addFormData, customServiceDescription: e.target.value })}
-                          placeholder="Describe the custom service needed..."
-                          required={addFormData.services.includes('Other')}
-                          className="mt-1"
-                        />
+                      <div className="mt-3 space-y-3">
+                        <div>
+                          <Label htmlFor="customServiceDesc">Describe Custom Service *</Label>
+                          <Input
+                            id="customServiceDesc"
+                            value={addFormData.customServiceDescription}
+                            onChange={(e) => setAddFormData({ ...addFormData, customServiceDescription: e.target.value })}
+                            placeholder="Describe the custom service needed..."
+                            required={addFormData.services.includes('Other')}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="customServiceAmount">Payment Amount (Ksh) *</Label>
+                          <Input
+                            id="customServiceAmount"
+                            type="number"
+                            step="0.01"
+                            value={addFormData.customServiceAmount || ''}
+                            onChange={(e) => setAddFormData({ ...addFormData, customServiceAmount: e.target.value })}
+                            placeholder="Enter amount for custom service"
+                            required={addFormData.services.includes('Other')}
+                            className="mt-1"
+                          />
+                        </div>
                       </div>
                     )}
 

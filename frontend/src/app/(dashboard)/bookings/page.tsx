@@ -27,17 +27,22 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface Booking {
   _id: string;
-  bookingReference: string;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
-  serviceType: string;
-  vehicleInfo: string;
+  vehicleModel: string;
+  vehiclePlate?: string;
+  requestedServices: string[];
+  serviceCategory: 'colour_repair' | 'clean_shine' | 'coat_guard';
   preferredDate: string;
-  preferredTime?: string;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
-  notes?: string;
+  photos?: string[];
+  description?: string;
+  quotationAmount?: number;
+  quotationSent: boolean;
   source?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export default function BookingsPage() {
@@ -54,11 +59,15 @@ export default function BookingsPage() {
     customerName: '',
     customerEmail: '',
     customerPhone: '',
-    serviceType: '',
-    vehicleInfo: '',
+    customerGender: '' as '' | 'male' | 'female' | 'other',
+    vehicleModel: '',
+    vehiclePlate: '',
+    serviceCategory: '' as '' | 'colour_repair' | 'clean_shine' | 'coat_guard',
+    requestedServices: [] as string[],
+    description: '',
     preferredDate: '',
     preferredTime: '',
-    notes: ''
+    specialRequest: ''
   });
 
   useEffect(() => {
@@ -91,7 +100,7 @@ export default function BookingsPage() {
       filtered = filtered.filter(
         (booking) =>
           booking.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          booking.bookingReference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          booking.vehicleModel.toLowerCase().includes(searchTerm.toLowerCase()) ||
           booking.customerEmail.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
@@ -169,11 +178,15 @@ export default function BookingsPage() {
         customerName: '',
         customerEmail: '',
         customerPhone: '',
-        serviceType: '',
-        vehicleInfo: '',
+        customerGender: '' as '' | 'male' | 'female' | 'other',
+        vehicleModel: '',
+        vehiclePlate: '',
+        serviceCategory: '' as '' | 'colour_repair' | 'clean_shine' | 'coat_guard',
+        requestedServices: [] as string[],
+        description: '',
         preferredDate: '',
         preferredTime: '',
-        notes: ''
+        specialRequest: ''
       });
       fetchBookings();
     } catch (error) {
@@ -287,12 +300,10 @@ export default function BookingsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Reference</TableHead>
                 <TableHead>Customer</TableHead>
-                <TableHead>Service</TableHead>
+                <TableHead>Service Category</TableHead>
                 <TableHead>Vehicle</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead>Time</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead>Actions</TableHead>
@@ -301,17 +312,20 @@ export default function BookingsPage() {
             <TableBody>
               {filteredBookings.map((booking) => (
                 <TableRow key={booking._id}>
-                  <TableCell className="font-medium">{booking.bookingReference}</TableCell>
                   <TableCell>
                     <div>
                       <div className="font-medium">{booking.customerName}</div>
                       <div className="text-xs text-gray-500">{booking.customerPhone}</div>
                     </div>
                   </TableCell>
-                  <TableCell className="capitalize">{booking.serviceType.replace('_', ' ')}</TableCell>
-                  <TableCell>{booking.vehicleInfo}</TableCell>
+                  <TableCell className="capitalize">{booking.serviceCategory.replace('_', ' ')}</TableCell>
+                  <TableCell>
+                    <div>
+                      <div className="font-medium">{booking.vehicleModel}</div>
+                      {booking.vehiclePlate && <div className="text-xs text-gray-500">{booking.vehiclePlate}</div>}
+                    </div>
+                  </TableCell>
                   <TableCell>{new Date(booking.preferredDate).toLocaleDateString()}</TableCell>
-                  <TableCell>{booking.preferredTime || '-'}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded-full text-xs capitalize ${getStatusBadge(booking.status)}`}>
                       {booking.status}
@@ -367,8 +381,8 @@ export default function BookingsPage() {
             <div className="grid gap-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-gray-600">Booking Reference</Label>
-                  <p className="font-medium">{selectedBooking.bookingReference}</p>
+                  <Label className="text-gray-600">Customer Name</Label>
+                  <p className="font-medium">{selectedBooking.customerName}</p>
                 </div>
                 <div>
                   <Label className="text-gray-600">Status</Label>
@@ -395,29 +409,48 @@ export default function BookingsPage() {
                   </span>
                 </div>
                 <div>
-                  <Label className="text-gray-600">Service Type</Label>
-                  <p className="font-medium capitalize">{selectedBooking.serviceType.replace('_', ' ')}</p>
+                  <Label className="text-gray-600">Service Category</Label>
+                  <p className="font-medium capitalize">{selectedBooking.serviceCategory.replace('_', ' ')}</p>
                 </div>
                 <div>
-                  <Label className="text-gray-600">Vehicle Info</Label>
-                  <p className="font-medium">{selectedBooking.vehicleInfo}</p>
+                  <Label className="text-gray-600">Vehicle Model</Label>
+                  <p className="font-medium">{selectedBooking.vehicleModel}</p>
                 </div>
+                {selectedBooking.vehiclePlate && (
+                  <div>
+                    <Label className="text-gray-600">Vehicle Plate</Label>
+                    <p className="font-medium">{selectedBooking.vehiclePlate}</p>
+                  </div>
+                )}
                 <div>
                   <Label className="text-gray-600">Preferred Date</Label>
                   <p className="font-medium">{new Date(selectedBooking.preferredDate).toLocaleDateString()}</p>
                 </div>
-                {selectedBooking.preferredTime && (
-                  <div>
-                    <Label className="text-gray-600">Preferred Time</Label>
-                    <p className="font-medium">{selectedBooking.preferredTime}</p>
+                {selectedBooking.requestedServices && selectedBooking.requestedServices.length > 0 && (
+                  <div className="col-span-2">
+                    <Label className="text-gray-600">Requested Services</Label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {selectedBooking.requestedServices.map((service, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                          {service}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
               
-              {selectedBooking.notes && (
+              {selectedBooking.description && (
                 <div>
-                  <Label className="text-gray-600">Notes</Label>
-                  <p className="font-medium border rounded-md p-3 bg-gray-50">{selectedBooking.notes}</p>
+                  <Label className="text-gray-600">Description</Label>
+                  <p className="font-medium border rounded-md p-3 bg-gray-50">{selectedBooking.description}</p>
+                </div>
+              )}
+              
+              {selectedBooking.quotationAmount && (
+                <div>
+                  <Label className="text-gray-600">Quotation Amount</Label>
+                  <p className="font-medium text-lg text-green-600">Ksh {selectedBooking.quotationAmount.toLocaleString()}</p>
                 </div>
               )}
             </div>
@@ -474,36 +507,59 @@ export default function BookingsPage() {
                     onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
                     required
                   />
-                </div>
-                <div>
-                  <Label htmlFor="vehicleInfo">Vehicle Info</Label>
+                </div>                <div>
+                  <Label htmlFor="customerGender">Gender</Label>
+                  <select
+                    id="customerGender"
+                    value={formData.customerGender || ''}
+                    onChange={(e) => setFormData({ ...formData, customerGender: e.target.value as 'male' | 'female' | 'other' | '' })}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="">Select gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>                <div>
+                  <Label htmlFor="vehicleModel">Vehicle Model</Label>
                   <Input
-                    id="vehicleInfo"
-                    placeholder="e.g., BMW X5 KBB 123A"
-                    value={formData.vehicleInfo}
-                    onChange={(e) => setFormData({ ...formData, vehicleInfo: e.target.value })}
+                    id="vehicleModel"
+                    placeholder="e.g., BMW X5"
+                    value={formData.vehicleModel}
+                    onChange={(e) => setFormData({ ...formData, vehicleModel: e.target.value })}
                     required
                   />
                 </div>
               </div>
-              <div>
-                <Label htmlFor="serviceType">Service Type</Label>
-                <select
-                  id="serviceType"
-                  value={formData.serviceType}
-                  onChange={(e) => setFormData({ ...formData, serviceType: e.target.value })}
-                  className="w-full border rounded-md px-3 py-2"
-                  required
-                >
-                  <option value="">Select service</option>
-                  <option value="colour_repair">Colour Repair</option>
-                  <option value="clean_shine">Clean & Shine</option>
-                  <option value="coat_guard">Coat & Guard</option>
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="vehiclePlate">Vehicle Plate (Optional)</Label>
+                  <Input
+                    id="vehiclePlate"
+                    placeholder="e.g., KBB 123A"
+                    value={formData.vehiclePlate}
+                    onChange={(e) => setFormData({ ...formData, vehiclePlate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="serviceCategory">Service Category</Label>
+                  <select
+                    id="serviceCategory"
+                    value={formData.serviceCategory}
+                    onChange={(e) => setFormData({ ...formData, serviceCategory: e.target.value as 'colour_repair' | 'clean_shine' | 'coat_guard' })}
+                    className="w-full border rounded-md px-3 py-2"
+                    required
+                  >
+                    <option value="">Select category</option>
+                    <option value="colour_repair">Colour Repair</option>
+                    <option value="clean_shine">Clean & Shine</option>
+                    <option value="coat_guard">Coat & Guard</option>
+                  </select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="preferredDate">Preferred Date</Label>
+                  <Label htmlFor="preferredDate">Preferred Date *</Label>
                   <Input
                     id="preferredDate"
                     type="date"
@@ -523,12 +579,22 @@ export default function BookingsPage() {
                 </div>
               </div>
               <div>
-                <Label htmlFor="notes">Notes</Label>
+                <Label htmlFor="description">Description</Label>
                 <Input
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Any additional information..."
+                />
+              </div>
+              <div>
+                <Label htmlFor="specialRequest">Special Request</Label>
+                <textarea
+                  id="specialRequest"
+                  value={formData.specialRequest}
+                  onChange={(e) => setFormData({ ...formData, specialRequest: e.target.value })}
+                  className="w-full border rounded-md px-3 py-2 min-h-[80px]"
+                  placeholder="Any special requirements or requests..."
                 />
               </div>
             </div>

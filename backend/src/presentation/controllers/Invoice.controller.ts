@@ -12,8 +12,14 @@ export class InvoiceController {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
       const skip = req.query.skip ? parseInt(req.query.skip as string) : undefined;
+      const carId = req.query.carId as string | undefined;
       
-      const invoices = await this.invoiceService.getAllInvoices(limit, skip);
+      let invoices;
+      if (carId) {
+        invoices = await this.invoiceService.getCarInvoices(carId);
+      } else {
+        invoices = await this.invoiceService.getAllInvoices(limit, skip);
+      }
 
       res.status(200).json({
         success: true,
@@ -85,6 +91,19 @@ export class InvoiceController {
       res.status(200).json({
         success: true,
         data: stats
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deleteInvoice = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await this.invoiceService.deleteInvoice(req.params.id);
+
+      res.status(200).json({
+        success: true,
+        message: 'Invoice deleted successfully'
       });
     } catch (error) {
       next(error);

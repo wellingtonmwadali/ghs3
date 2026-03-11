@@ -258,7 +258,7 @@ export class InspectionService {
           </div>
           
           <div style="margin-top: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-            <p>${settings?.companyInfo?.name || 'GHS3'} - ${settings?.companyInfo?.address || ''}</p>
+            <p>${settings?.companyInfo?.name || 'GHS35'} - ${settings?.companyInfo?.address || ''}</p>
           </div>
         </body>
         </html>

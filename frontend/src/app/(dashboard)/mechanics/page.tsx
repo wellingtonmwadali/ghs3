@@ -37,18 +37,20 @@ interface Mechanic {
   performance: {
     totalJobsCompleted: number;
     averageTurnaroundTime: number;
-    efficiencyScore: number;
     customerRating: number;
   };
   laborHoursLogged: number;
   salary: number;
   hireDate: string;
   birthday?: string;
+  userId?: string;
+  isActive?: boolean;
 }
 
 export default function MechanicsPage() {
   const toast = useToast();
   const [mechanics, setMechanics] = useState<Mechanic[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [filteredMechanics, setFilteredMechanics] = useState<Mechanic[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -70,6 +72,7 @@ export default function MechanicsPage() {
 
   useEffect(() => {
     fetchMechanics();
+    fetchUsers();
   }, []);
 
   useEffect(() => {
@@ -88,6 +91,18 @@ export default function MechanicsPage() {
       console.error('Error fetching mechanics:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/auth/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUsers(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
     }
   };
 
@@ -156,6 +171,32 @@ export default function MechanicsPage() {
       fetchMechanics();
     } catch (error) {
       console.error('Error deleting mechanic:', error);
+    }
+  };
+
+  const getUserForMechanic = (mechanic: Mechanic) => {
+    return users.find(u => u.mechanicId === mechanic._id);
+  };
+
+  const handleToggleActive = async (mechanic: Mechanic) => {
+    const user = getUserForMechanic(mechanic);
+    if (!user) {
+      toast.error('No user account found for this mechanic');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(
+        `${process.env.NEXT_PUBLIC_API_URL}/auth/users/${user.id}/toggle-active`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success(`User ${user.isActive ? 'deactivated' : 'activated'} successfully`);
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error toggling user status:', error);
+      toast.error(error.response?.data?.message || 'Failed to update user status');
     }
   };
 
@@ -266,7 +307,7 @@ export default function MechanicsPage() {
                 <TableHead>Specialization</TableHead>
                 <TableHead>Availability</TableHead>
                 <TableHead>Rating</TableHead>
-                <TableHead>Efficiency</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -289,7 +330,19 @@ export default function MechanicsPage() {
                     </span>
                   </TableCell>
                   <TableCell>⭐ {mechanic.performance.customerRating.toFixed(1)}</TableCell>
-                  <TableCell>{mechanic.performance.efficiencyScore}%</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const user = getUserForMechanic(mechanic);
+                      if (!user) return <span className="text-gray-400 text-xs">No account</span>;
+                      return (
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {user.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      );
+                    })()}
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => handleView(mechanic)}>
@@ -298,6 +351,15 @@ export default function MechanicsPage() {
                       <Button size="sm" variant="outline" onClick={() => handleEdit(mechanic)}>
                         Edit
                       </Button>
+                      {getUserForMechanic(mechanic) && (
+                        <Button 
+                          size="sm" 
+                          variant={getUserForMechanic(mechanic)!.isActive ? "secondary" : "default"}
+                          onClick={() => handleToggleActive(mechanic)}
+                        >
+                          {getUserForMechanic(mechanic)!.isActive ? 'Deactivate' : 'Activate'}
+                        </Button>
+                      )}
                       <Button size="sm" variant="destructive" onClick={() => handleDelete(mechanic._id)}>
                         Delete
                       </Button>
@@ -364,10 +426,6 @@ export default function MechanicsPage() {
                   <p className="font-medium text-2xl">{selectedMechanic.performance.averageTurnaroundTime}</p>
                 </div>
                 <div>
-                  <Label className="text-gray-600">Efficiency Score</Label>
-                  <p className="font-medium text-2xl">{selectedMechanic.performance.efficiencyScore}%</p>
-                </div>
-                <div>
                   <Label className="text-gray-600">Customer Rating</Label>
                   <p className="font-medium text-2xl">⭐ {selectedMechanic.performance.customerRating.toFixed(1)}</p>
                 </div>
@@ -380,7 +438,7 @@ export default function MechanicsPage() {
                 </div>
                 <div>
                   <Label className="text-gray-600">Salary</Label>
-                  <p className="font-medium">Ksh {selectedMechanic.salary.toLocaleString()}</p>
+                  <p className="font-medium">Ksh {(selectedMechanic.salary || 0).toLocaleString()}</p>
                 </div>
                 <div>
                   <Label className="text-gray-600">Hire Date</Label>

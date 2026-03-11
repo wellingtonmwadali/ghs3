@@ -23,7 +23,6 @@ const MechanicSchema = new Schema<IMechanicDocument>(
     performance: {
       totalJobsCompleted: { type: Number, default: 0 },
       averageTurnaroundTime: { type: Number, default: 0 },
-      efficiencyScore: { type: Number, default: 100, min: 0, max: 100 },
       customerRating: { type: Number, default: 5, min: 0, max: 5 }
     },
     

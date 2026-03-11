@@ -4,6 +4,7 @@ export interface IBooking {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  customerGender?: 'male' | 'female' | 'other';
   
   vehicleModel: string;
   vehiclePlate?: string;

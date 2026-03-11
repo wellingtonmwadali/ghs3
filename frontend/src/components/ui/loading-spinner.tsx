@@ -18,8 +18,13 @@ export function LoadingSpinner({ size = 'md', text, fullScreen = false }: Loadin
 
   const spinner = (
     <div className="flex flex-col items-center justify-center gap-3">
-      <Loader2 className={`${sizeClasses[size]} animate-spin text-primary`} />
-      {text && <p className="text-sm text-muted-foreground">{text}</p>}
+      <div className="relative">
+        <Loader2 className={`${sizeClasses[size]} animate-spin text-primary`} />
+        <div className={`${sizeClasses[size]} absolute top-0 left-0 animate-ping opacity-20`}>
+          <div className="w-full h-full rounded-full bg-primary"></div>
+        </div>
+      </div>
+      {text && <p className="text-sm text-muted-foreground animate-pulse">{text}</p>}
     </div>
   );
 

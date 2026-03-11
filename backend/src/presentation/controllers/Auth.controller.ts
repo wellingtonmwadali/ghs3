@@ -50,4 +50,29 @@ export class AuthController {
       next(error);
     }
   };
+
+  getAllUsers = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const users = await this.authService.getAllUsers();
+      res.status(200).json({
+        success: true,
+        data: users
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  toggleUserActive = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await this.authService.toggleUserActive(req.params.id);
+      res.status(200).json({
+        success: true,
+        message: 'User status updated',
+        data: result
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

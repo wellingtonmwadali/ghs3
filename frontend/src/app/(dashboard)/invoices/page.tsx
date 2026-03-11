@@ -130,6 +130,22 @@ export default function InvoicesPage() {
     setIsViewDialogOpen(true);
   };
 
+  const handleDelete = async (invoiceId: string) => {
+    if (!confirm('Are you sure you want to delete this invoice? This action cannot be undone.')) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/invoices/${invoiceId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Invoice deleted successfully');
+      fetchInvoices();
+    } catch (error: any) {
+      console.error('Error deleting invoice:', error);
+      toast.error(error.response?.data?.message || 'Failed to delete invoice');
+    }
+  };
+
   const handlePrint = (invoice: Invoice) => {
     // Implement print functionality
     window.print();
@@ -291,8 +307,8 @@ export default function InvoicesPage() {
               {filteredInvoices.map((invoice) => (
                 <TableRow key={invoice._id}>
                   <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                  <TableCell>{invoice.customerId?.name || 'N/A'}</TableCell>
-                  <TableCell>{invoice.carId ? `${invoice.carId.vehicleModel} (${invoice.carId.vehiclePlate})` : 'N/A'}</TableCell>
+                  <TableCell>{typeof invoice.customerId === 'object' ? invoice.customerId?.name : 'N/A'}</TableCell>
+                  <TableCell>{typeof invoice.carId === 'object' && invoice.carId ? `${invoice.carId.vehicleModel} (${invoice.carId.vehiclePlate})` : 'N/A'}</TableCell>
                   <TableCell>Ksh {(invoice.total || 0).toLocaleString()}</TableCell>
                   <TableCell>Ksh {(invoice.paidAmount || 0).toLocaleString()}</TableCell>
                   <TableCell>Ksh {(invoice.balance || 0).toLocaleString()}</TableCell>
@@ -314,6 +330,9 @@ export default function InvoicesPage() {
                       )}
                       <Button size="sm" variant="outline" onClick={() => handlePrint(invoice)}>
                         Print
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleDelete(invoice._id)}>
+                        Delete
                       </Button>
                     </div>
                   </TableCell>
@@ -418,12 +437,6 @@ export default function InvoicesPage() {
                   <Label className="text-gray-600">Due Date</Label>
                   <p className="font-medium">{new Date(selectedInvoice.dueDate).toLocaleDateString()}</p>
                 </div>
-                {selectedInvoice.paymentMethod && (
-                  <div>
-                    <Label className="text-gray-600">Payment Method</Label>
-                    <p className="font-medium">{selectedInvoice.paymentMethod}</p>
-                  </div>
-                )}
               </div>
             </div>
           )}

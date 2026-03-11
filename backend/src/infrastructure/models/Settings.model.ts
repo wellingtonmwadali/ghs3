@@ -58,7 +58,24 @@ const SettingsSchema = new Schema<ISettingsDocument>(
       invoiceCreated: { type: Boolean, default: true },
       paymentReceived: { type: Boolean, default: true },
       emailEnabled: { type: Boolean, default: true },
-      whatsappEnabled: { type: Boolean, default: false }
+      whatsappEnabled: { type: Boolean, default: false },
+      recipients: {
+        type: { type: String, enum: ['single', 'multiple'], default: 'single' },
+        emails: [{ type: String }],
+        userIds: [{ type: String }]
+      },
+      inventory: {
+        enabled: { type: Boolean, default: true },
+        checkFrequency: { type: String, enum: ['hourly', 'daily', 'weekly'], default: 'daily' },
+        minStockLevelTrigger: { type: Boolean, default: true },
+        customThreshold: { type: Number }
+      },
+      lateServices: {
+        enabled: { type: Boolean, default: true },
+        daysOverdue: { type: Number, default: 2 },
+        checkFrequency: { type: String, enum: ['daily', 'twice_daily'], default: 'daily' },
+        notifyCustomer: { type: Boolean, default: false }
+      }
     },
     rolePermissions: {
       owner: [{ type: String }],

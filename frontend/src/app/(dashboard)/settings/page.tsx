@@ -60,6 +60,30 @@ interface SettingsData {
     whatsapp: boolean;
   };
   companyInfo?: CompanyInfo;
+  notifications?: {
+    lowInventoryAlert: boolean;
+    invoiceCreated: boolean;
+    paymentReceived: boolean;
+    emailEnabled: boolean;
+    whatsappEnabled: boolean;
+    recipients: {
+      type: 'single' | 'multiple';
+      emails: string[];
+      userIds?: string[];
+    };
+    inventory: {
+      enabled: boolean;
+      checkFrequency: 'hourly' | 'daily' | 'weekly';
+      minStockLevelTrigger: boolean;
+      customThreshold?: number;
+    };
+    lateServices: {
+      enabled: boolean;
+      daysOverdue: number;
+      checkFrequency: 'daily' | 'twice_daily';
+      notifyCustomer: boolean;
+    };
+  };
 }
 
 export default function SettingsPage() {
@@ -80,11 +104,35 @@ export default function SettingsPage() {
       phone: '',
       address: '',
       logo: ''
+    },
+    notifications: {
+      lowInventoryAlert: true,
+      invoiceCreated: true,
+      paymentReceived: true,
+      emailEnabled: true,
+      whatsappEnabled: false,
+      recipients: {
+        type: 'single',
+        emails: [],
+        userIds: []
+      },
+      inventory: {
+        enabled: true,
+        checkFrequency: 'daily',
+        minStockLevelTrigger: true,
+        customThreshold: undefined
+      },
+      lateServices: {
+        enabled: true,
+        daysOverdue: 2,
+        checkFrequency: 'daily',
+        notifyCustomer: false
+      }
     }
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'company' | 'services' | 'promotions' | 'announcements' | 'holidays' | 'features'>('company');
+  const [activeTab, setActiveTab] = useState<'company' | 'services' | 'promotions' | 'announcements' | 'holidays' | 'features' | 'notifications'>('company');
   const [logoPreview, setLogoPreview] = useState<string>('');
 
   useEffect(() => {
@@ -315,6 +363,7 @@ export default function SettingsPage() {
   const tabs = [
     { id: 'company', label: 'Company Information', icon: Building2 },
     { id: 'services', label: 'Service Types', icon: SettingsIcon },
+    { id: 'notifications', label: 'Notifications', icon: SettingsIcon },
     { id: 'promotions', label: 'Promotional Messages', icon: SettingsIcon },
     { id: 'announcements', label: 'Announcements', icon: SettingsIcon },
     { id: 'holidays', label: 'Holidays', icon: SettingsIcon },
@@ -383,8 +432,7 @@ export default function SettingsPage() {
                         className="w-full h-full object-contain"
                       />
                     </div>
-                  )}
-                  <div className="text-center">
+                  )}  <div className="text-center">
                     <Label htmlFor="logo-upload" className="cursor-pointer">
                       <div className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
                         <Upload className="h-4 w-4" />
@@ -398,6 +446,27 @@ export default function SettingsPage() {
                       onChange={handleLogoUpload}
                       className="hidden"
                     />
+                    {(logoPreview || settings.companyInfo?.logo) && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          setLogoPreview('');
+                          setSettings({
+                            ...settings,
+                            companyInfo: { ...settings.companyInfo!, logo: '' }
+                          });
+                          localStorage.removeItem('companyLogo');
+                          window.dispatchEvent(new CustomEvent('logoUpdated', { detail: { logo: '' } }));
+                          toast.success('Logo deleted successfully!');
+                        }}
+                        className="mt-2"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Logo
+                      </Button>
+                    )}
                     <p className="text-xs text-muted-foreground mt-2">
                       Recommended: Square image, max 2MB (PNG, JPG, SVG)
                     </p>
@@ -581,52 +650,28 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {settings.promotionalMessages.map((promo) => (
-                <div key={promo.id} className="p-4 bg-gray-50 rounded-lg">
-                  <div className="flex gap-4 items-start">
-                    <div className="flex-1 space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label>Message Title</Label>
-                          <Input
-                            value={promo.title}
-                            onChange={(e) => updatePromotionalMessage(promo.id, 'title', e.target.value)}
-                            placeholder="e.g., Spring Special Offer"
-                          />
-                        </div>
-                        <div>
-                          <Label>Target Audience</Label>
-                          <select
-                            value={promo.target}
-                            onChange={(e) => updatePromotionalMessage(promo.id, 'target', e.target.value)}
-                            className="w-full border rounded-md px-3 py-2"
-                          >
-                            <option value="all">All Customers</option>
-                            <option value="recurring">Recurring Customers</option>
-                            <option value="new">New Customers</option>
-                            <option value="high_value">High Value Customers</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div>
-                        <Label>Message Content</Label>
-                        <textarea
-                          value={promo.message}
-                          onChange={(e) => updatePromotionalMessage(promo.id, 'message', e.target.value)}
-                          className="w-full border rounded-md px-3 py-2 min-h-[100px]"
-                          placeholder="Enter your promotional message here..."
-                        />
-                      </div>
+              {settings.promotionalMessages.map((promo, index) => (
+                <div key={promo.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="flex items-center justify-center w-8 h-8 bg-primary text-primary-foreground rounded-full font-semibold text-sm">
+                      {index + 1}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removePromotionalMessage(promo.id)}
-                      className="mt-6"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <div className="flex-1">
+                      <Input
+                        value={promo.title}
+                        onChange={(e) => updatePromotionalMessage(promo.id, 'title', e.target.value)}
+                        placeholder="e.g., Spring Special Offer"
+                        className="font-medium"
+                      />
+                    </div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removePromotionalMessage(promo.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </div>
               ))}
               <Button onClick={addPromotionalMessage} variant="outline">
@@ -763,6 +808,357 @@ export default function SettingsPage() {
                 <Plus className="mr-2 h-4 w-4" />
                 Add Holiday
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Notifications Tab */}
+      {activeTab === 'notifications' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Notification Settings</CardTitle>
+            <CardDescription>
+              Configure who receives notifications and what triggers alerts
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-8">
+              
+              {/* Notification Recipients */}
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-semibold mb-4">Notification Recipients</h4>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Recipient Type</Label>
+                    <select
+                      value={settings.notifications?.recipients?.type || 'single'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        notifications: {
+                          ...settings.notifications!,
+                          recipients: {
+                            ...settings.notifications!.recipients,
+                            type: e.target.value as 'single' | 'multiple'
+                          }
+                        }
+                      })}
+                      className="w-full mt-1 border rounded-md px-3 py-2"
+                    >
+                      <option value="single">Single Recipient (Admin/Owner)</option>
+                      <option value="multiple">Multiple Recipients (Team)</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">Choose who should receive system notifications</p>
+                  </div>
+
+                  <div>
+                    <Label>Email Addresses</Label>
+                    <div className="space-y-2 mt-2">
+                      {settings.notifications?.recipients?.emails?.map((email, index) => (
+                        <div key={index} className="flex gap-2">
+                          <Input
+                            type="email"
+                            value={email}
+                            onChange={(e) => {
+                              const newEmails = [...(settings.notifications?.recipients?.emails || [])];
+                              newEmails[index] = e.target.value;
+                              setSettings({
+                                ...settings,
+                                notifications: {
+                                  ...settings.notifications!,
+                                  recipients: {
+                                    ...settings.notifications!.recipients,
+                                    emails: newEmails
+                                  }
+                                }
+                              });
+                            }}
+                            placeholder="admin@garage.com"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              const newEmails = settings.notifications?.recipients?.emails?.filter((_, i) => i !== index) || [];
+                              setSettings({
+                                ...settings,
+                                notifications: {
+                                  ...settings.notifications!,
+                                  recipients: {
+                                    ...settings.notifications!.recipients,
+                                    emails: newEmails
+                                  }
+                                }
+                              });
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSettings({
+                            ...settings,
+                            notifications: {
+                              ...settings.notifications!,
+                              recipients: {
+                                ...settings.notifications!.recipients,
+                                emails: [...(settings.notifications?.recipients?.emails || []), '']
+                              }
+                            }
+                          });
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Email
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Low Inventory Notifications */}
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-semibold">Low Inventory Alerts</h4>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.notifications?.inventory?.enabled || false}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        notifications: {
+                          ...settings.notifications!,
+                          inventory: {
+                            ...settings.notifications!.inventory,
+                            enabled: e.target.checked
+                          }
+                        }
+                      })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+                
+                {settings.notifications?.inventory?.enabled && (
+                  <div className="space-y-4 mt-4">
+                    <div>
+                      <Label>Check Frequency</Label>
+                      <select
+                        value={settings.notifications?.inventory?.checkFrequency || 'daily'}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          notifications: {
+                            ...settings.notifications!,
+                            inventory: {
+                              ...settings.notifications!.inventory,
+                              checkFrequency: e.target.value as 'hourly' | 'daily' | 'weekly'
+                            }
+                          }
+                        })}
+                        className="w-full mt-1 border rounded-md px-3 py-2"
+                      >
+                        <option value="hourly">Every Hour</option>
+                        <option value="daily">Once Daily</option>
+                        <option value="weekly">Once Weekly</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="minStockTrigger"
+                        checked={settings.notifications?.inventory?.minStockLevelTrigger || false}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          notifications: {
+                            ...settings.notifications!,
+                            inventory: {
+                              ...settings.notifications!.inventory,
+                              minStockLevelTrigger: e.target.checked
+                            }
+                          }
+                        })}
+                        className="w-4 h-4"
+                      />
+                      <Label htmlFor="minStockTrigger" className="cursor-pointer">
+                        Alert when items reach minimum stock level
+                      </Label>
+                    </div>
+
+                    <div>
+                      <Label>Custom Threshold (Optional %)</Label>
+                      <Input
+                        type="number"
+                        value={settings.notifications?.inventory?.customThreshold || ''}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          notifications: {
+                            ...settings.notifications!,
+                            inventory: {
+                              ...settings.notifications!.inventory,
+                              customThreshold: e.target.value ? parseInt(e.target.value) : undefined
+                            }
+                          }
+                        })}
+                        placeholder="e.g., 20 for 20% of stock"
+                        min="1"
+                        max="100"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Alert when inventory falls below this percentage</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Late Service Notifications */}
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-semibold">Late Service Alerts</h4>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.notifications?.lateServices?.enabled || false}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        notifications: {
+                          ...settings.notifications!,
+                          lateServices: {
+                            ...settings.notifications!.lateServices,
+                            enabled: e.target.checked
+                          }
+                        }
+                      })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+                
+                {settings.notifications?.lateServices?.enabled && (
+                  <div className="space-y-4 mt-4">
+                    <div>
+                      <Label>Days Overdue Before Alert</Label>
+                      <Input
+                        type="number"
+                        value={settings.notifications?.lateServices?.daysOverdue || 2}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          notifications: {
+                            ...settings.notifications!,
+                            lateServices: {
+                              ...settings.notifications!.lateServices,
+                              daysOverdue: parseInt(e.target.value) || 2
+                            }
+                          }
+                        })}
+                        min="1"
+                        max="30"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Send alert when service is X days past expected completion</p>
+                    </div>
+
+                    <div>
+                      <Label>Check Frequency</Label>
+                      <select
+                        value={settings.notifications?.lateServices?.checkFrequency || 'daily'}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          notifications: {
+                            ...settings.notifications!,
+                            lateServices: {
+                              ...settings.notifications!.lateServices,
+                              checkFrequency: e.target.value as 'daily' | 'twice_daily'
+                            }
+                          }
+                        })}
+                        className="w-full mt-1 border rounded-md px-3 py-2"
+                      >
+                        <option value="daily">Once Daily (9 AM)</option>
+                        <option value="twice_daily">Twice Daily (9 AM & 3 PM)</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="notifyCustomer"
+                        checked={settings.notifications?.lateServices?.notifyCustomer || false}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          notifications: {
+                            ...settings.notifications!,
+                            lateServices: {
+                              ...settings.notifications!.lateServices,
+                              notifyCustomer: e.target.checked
+                            }
+                          }
+                        })}
+                        className="w-4 h-4"
+                      />
+                      <Label htmlFor="notifyCustomer" className="cursor-pointer">
+                        Also notify customer about delays
+                      </Label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* General Notification Toggles */}
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-semibold mb-4">Other Notifications</h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Invoice Created</p>
+                      <p className="text-sm text-gray-500">Notify when new invoice is generated</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.notifications?.invoiceCreated || false}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          notifications: {
+                            ...settings.notifications!,
+                            invoiceCreated: e.target.checked
+                          }
+                        })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Payment Received</p>
+                      <p className="text-sm text-gray-500">Notify when payment is recorded</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.notifications?.paymentReceived || false}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          notifications: {
+                            ...settings.notifications!,
+                            paymentReceived: e.target.checked
+                          }
+                        })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

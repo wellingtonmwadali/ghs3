@@ -7,8 +7,7 @@ const BookingSchema = new Schema<IBookingDocument>(
   {
     customerName: { type: String, required: true },
     customerEmail: { type: String, required: true, lowercase: true },
-    customerPhone: { type: String, required: true },
-    
+    customerPhone: { type: String, required: true },    customerGender: { type: String, enum: ['male', 'female', 'other'] },    
     vehicleModel: { type: String, required: true },
     vehiclePlate: { type: String },
     

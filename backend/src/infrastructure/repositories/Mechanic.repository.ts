@@ -68,7 +68,7 @@ export class MechanicRepository {
     const mechanics = await MechanicModel.find({
       $or: [{ specialization }, { specialization: 'all' }],
       availability: 'available'
-    }).sort({ 'activeJobs.length': 1, 'performance.efficiencyScore': -1 });
+    }).sort({ 'activeJobs.length': 1, 'performance.customerRating': -1 });
     
     return mechanics[0] || null;
   }
@@ -100,7 +100,7 @@ export class MechanicRepository {
 
   async getTopPerformers(limit: number): Promise<IMechanicDocument[]> {
     return await MechanicModel.find()
-      .sort({ 'performance.efficiencyScore': -1, 'performance.totalJobsCompleted': -1 })
+      .sort({ 'performance.customerRating': -1, 'performance.totalJobsCompleted': -1 })
       .limit(limit);
   }
 }

@@ -1,6 +1,7 @@
 import { CarRepository } from '../../infrastructure/repositories/Car.repository';
 import { CustomerRepository } from '../../infrastructure/repositories/Customer.repository';
 import { MechanicRepository } from '../../infrastructure/repositories/Mechanic.repository';
+import { InvoiceRepository } from '../../infrastructure/repositories/Invoice.repository';
 import { ICar, ICarFilters } from '../../domain/entities/Car';
 import { AppError } from '../../presentation/middlewares/error.middleware';
 
@@ -8,11 +9,13 @@ export class CarService {
   private carRepository: CarRepository;
   private customerRepository: CustomerRepository;
   private mechanicRepository: MechanicRepository;
+  private invoiceRepository: InvoiceRepository;
 
   constructor() {
     this.carRepository = new CarRepository();
     this.customerRepository = new CustomerRepository();
     this.mechanicRepository = new MechanicRepository();
+    this.invoiceRepository = new InvoiceRepository();
   }
 
   async createCar(carData: ICar) {
@@ -84,10 +87,21 @@ export class CarService {
     };
   }
 
-  async updateCar(id: string, updateData: Partial<ICar>) {
+  async updateCar(id: string, updateData: Partial<ICar> & { lastModifiedBy?: string; lastModifiedByName?: string }) {
     const car = await this.carRepository.findById(id);
     if (!car) {
       throw new AppError('Car not found', 404);
+    }
+
+    // If car is being inspected (moving from waiting_inspection to another stage) and inspector not recorded
+    if (
+      updateData.stage && 
+      updateData.stage !== 'waiting_inspection' && 
+      car.stage === 'waiting_inspection' && 
+      !car.inspectedBy
+    ) {
+      updateData.inspectedBy = updateData.lastModifiedBy;
+      updateData.inspectorName = updateData.lastModifiedByName;
     }
 
     // If stage is being changed to completed
@@ -106,6 +120,32 @@ export class CarService {
       const today = new Date();
       const checkIn = new Date(car.checkInDate);
       updateData.daysInGarage = Math.floor((today.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+    }
+
+    // If payment information is being updated, sync with invoice
+    if (updateData.paidAmount !== undefined || updateData.paymentStatus !== undefined) {
+      const invoices = await this.invoiceRepository.findByCar(id);
+      if (invoices && invoices.length > 0) {
+        const invoice = invoices[0]; // Get the first/latest invoice
+        const invoiceData = invoice as any;
+        
+        // Update invoice with new payment info
+        const newPaidAmount = updateData.paidAmount !== undefined ? updateData.paidAmount : invoiceData.paidAmount;
+        const newBalance = invoiceData.total - newPaidAmount;
+        
+        let paymentStatus: 'pending' | 'partial' | 'paid' = 'pending';
+        if (newPaidAmount >= invoiceData.total) {
+          paymentStatus = 'paid';
+        } else if (newPaidAmount > 0) {
+          paymentStatus = 'partial';
+        }
+        
+        await this.invoiceRepository.update(invoiceData._id.toString(), {
+          paidAmount: newPaidAmount,
+          balance: newBalance,
+          paymentStatus: updateData.paymentStatus || paymentStatus
+        });
+      }
     }
 
     return await this.carRepository.update(id, updateData);

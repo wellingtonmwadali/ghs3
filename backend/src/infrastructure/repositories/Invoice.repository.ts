@@ -19,6 +19,10 @@ export class InvoiceRepository {
     return await InvoiceModel.find({ customerId }).sort({ issuedDate: -1 });
   }
 
+  async findByCar(carId: string): Promise<IInvoiceDocument[]> {
+    return await InvoiceModel.find({ carId }).sort({ issuedDate: -1 });
+  }
+
   async findAll(limit?: number, skip?: number): Promise<IInvoiceDocument[]> {
     let query = InvoiceModel.find()
       .populate('customerId', 'name email phone')
@@ -64,6 +68,11 @@ export class InvoiceRepository {
     const newNumber = (lastNumber + 1).toString().padStart(4, '0');
     
     return `INV-2026-${newNumber}`;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const result = await InvoiceModel.findByIdAndDelete(id);
+    return !!result;
   }
 
   async getRevenueByPeriod(startDate: Date, endDate: Date): Promise<number> {

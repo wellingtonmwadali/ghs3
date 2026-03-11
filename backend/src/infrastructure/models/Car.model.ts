@@ -7,6 +7,7 @@ const CarSchema = new Schema<ICarDocument>(
   {
     customerId: { type: String, required: true, index: true },
     customerName: { type: String, required: true },
+    customerGender: { type: String, enum: ['male', 'female', 'other'] },
     vehicleModel: { type: String, required: true },
     vehiclePlate: { type: String, required: true, unique: true },
     vehicleYear: { type: Number, required: true },
@@ -26,6 +27,9 @@ const CarSchema = new Schema<ICarDocument>(
       index: true
     },
     statusProgress: { type: Number, default: 0, min: 0, max: 100 },
+    
+    inspectedBy: { type: String },
+    inspectorName: { type: String },
     
     assignedMechanicId: { type: String, index: true },
     assignedMechanicName: { type: String },

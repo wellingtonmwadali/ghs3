@@ -16,7 +16,14 @@ export class UserRepository {
   }
 
   async findAll(): Promise<IUserDocument[]> {
-    return await UserModel.find({ isActive: true }).sort({ createdAt: -1 });
+    return await UserModel.find().sort({ createdAt: -1 });
+  }
+
+  async toggleActive(id: string): Promise<IUserDocument | null> {
+    const user = await UserModel.findById(id);
+    if (!user) return null;
+    user.isActive = !user.isActive;
+    return await user.save();
   }
 
   async update(id: string, updateData: Partial<IUser>): Promise<IUserDocument | null> {
