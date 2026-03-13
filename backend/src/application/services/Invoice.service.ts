@@ -1,18 +1,24 @@
 import { InvoiceRepository } from '../../infrastructure/repositories/Invoice.repository';
 import { CarRepository } from '../../infrastructure/repositories/Car.repository';
 import { CustomerRepository } from '../../infrastructure/repositories/Customer.repository';
+import { ReceiptService } from './Receipt.service';
 import { IInvoice } from '../../domain/entities/Invoice';
 import { AppError } from '../../presentation/middlewares/error.middleware';
+import { withTransaction } from '../../utils/transaction';
+import { InvoiceModel } from '../../infrastructure/models/Invoice.model';
+import { CarModel } from '../../infrastructure/models/Car.model';
 
 export class InvoiceService {
   private invoiceRepository: InvoiceRepository;
   private carRepository: CarRepository;
   private customerRepository: CustomerRepository;
+  private receiptService: ReceiptService;
 
   constructor() {
     this.invoiceRepository = new InvoiceRepository();
     this.carRepository = new CarRepository();
     this.customerRepository = new CustomerRepository();
+    this.receiptService = new ReceiptService();
   }
 
   async createInvoice(invoiceData: IInvoice) {
@@ -61,37 +67,89 @@ export class InvoiceService {
 
     const invoiceData = invoice as any;
 
-    // Add payment first
-    const updatedInvoice = await this.invoiceRepository.addPayment(invoiceId, paymentData);
-    
-    if (!updatedInvoice) {
-      throw new AppError('Failed to add payment', 500);
-    }
+    // Execute payment operations within a transaction for atomicity
+    const updatedInvoice = await withTransaction(async (session) => {
+      // Add payment to invoice
+      const invoice = await InvoiceModel.findById(invoiceId).session(session);
+      if (!invoice) {
+        throw new AppError('Invoice not found', 404);
+      }
 
-    // Calculate new paid amount and balance using the updated invoice
-    const newPaidAmount = (updatedInvoice as any).paidAmount;
-    const newBalance = (updatedInvoice as any).total - newPaidAmount;
+      // Add payment to history
+      const paymentEntry = {
+        amount: paymentData.amount,
+        paymentMethod: paymentData.paymentMethod,
+        paymentDate: paymentData.paymentDate || new Date(),
+        paymentReference: paymentData.paymentReference
+      };
 
-    // Determine payment status
-    let paymentStatus: 'pending' | 'partial' | 'paid' = 'partial';
-    if (newPaidAmount >= (updatedInvoice as any).total) {
-      paymentStatus = 'paid';
-    } else if (newPaidAmount <= 0) {
-      paymentStatus = 'pending';
-    }
+      invoice.payments = invoice.payments || [];
+      invoice.payments.push(paymentEntry as any);
+      invoice.paidAmount = (invoice.paidAmount || 0) + paymentData.amount;
 
-    // Update invoice status and balance
-    await this.invoiceRepository.update(invoiceId, {
-      balance: newBalance,
-      paymentStatus
+      // Calculate new balance and status
+      const newPaidAmount = invoice.paidAmount;
+      const newBalance = invoice.total - newPaidAmount;
+
+      let paymentStatus: 'pending' | 'partial' | 'paid' = 'partial';
+      if (newPaidAmount >= invoice.total) {
+        paymentStatus = 'paid';
+      } else if (newPaidAmount <= 0) {
+        paymentStatus = 'pending';
+      }
+
+      // Update invoice
+      invoice.balance = newBalance;
+      invoice.paymentStatus = paymentStatus;
+      await invoice.save({ session });
+
+      // Update car payment info if car exists (within same transaction)
+      if (invoiceData.carId) {
+        await CarModel.findByIdAndUpdate(
+          invoiceData.carId.toString(),
+          {
+            paidAmount: newPaidAmount,
+            paymentStatus
+          },
+          { session }
+        );
+      }
+
+      console.log(`[PAYMENT] Transaction completed: Invoice ${invoice.invoiceNumber}, Amount: ${paymentData.amount} KES, Status: ${paymentStatus}`);
+      
+      return invoice;
     });
 
-    // Update car payment info if car exists
-    if (invoiceData.carId) {
-      await this.carRepository.update(invoiceData.carId.toString(), {
-        paidAmount: newPaidAmount,
-        paymentStatus
-      });
+    // Generate and send receipt if payment is completed (outside transaction - non-critical)
+    const paymentStatus = (updatedInvoice as any).paymentStatus;
+    if (paymentStatus === 'paid' && invoiceData.customerEmail) {
+      try {
+        const car = await this.carRepository.findById(invoiceData.carId);
+        const receiptData = {
+          receiptNumber: this.receiptService.generateReceiptNumber(),
+          customerName: invoiceData.customerName,
+          customerEmail: invoiceData.customerEmail,
+          customerPhone: invoiceData.customerPhone || '',
+          amount: paymentData.amount,
+          paymentMethod: paymentData.paymentMethod,
+          paymentDate: paymentData.paymentDate || new Date(),
+          vehiclePlate: car?.vehiclePlate || '',
+          vehicleModel: car?.vehicleModel || '',
+          serviceType: car?.serviceType || '',
+          invoiceNumber: (updatedInvoice as any).invoiceNumber,
+          carId: invoiceData.carId
+        };
+
+        // Send receipt email (non-blocking)
+        this.receiptService.sendReceiptEmail(receiptData, invoiceData.customerEmail).catch(error => {
+          console.error('[RECEIPT] Failed to send receipt email:', error);
+        });
+
+        console.log(`[RECEIPT] Receipt ${receiptData.receiptNumber} sent to ${invoiceData.customerEmail} for invoice ${(updatedInvoice as any).invoiceNumber}`);
+      } catch (error) {
+        console.error('[RECEIPT] Failed to generate receipt:', error);
+        // Non-blocking - payment already succeeded
+      }
     }
 
     return updatedInvoice;

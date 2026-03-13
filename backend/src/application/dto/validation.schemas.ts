@@ -148,3 +148,42 @@ export const createBookingSchema = Joi.object({
   photos: Joi.array().items(Joi.string()).optional(),
   description: Joi.string().optional()
 });
+
+// Expense validation schemas
+export const createExpenseSchema = Joi.object({
+  category: Joi.string().valid('parts', 'labor', 'utilities', 'rent', 'equipment', 'marketing', 'other').required(),
+  description: Joi.string().required(),
+  amount: Joi.number().min(0).required(),
+  date: Joi.date().required(),
+  paymentMethod: Joi.string().valid('cash', 'card', 'transfer', 'cheque').required(),
+  vendor: Joi.string().optional(),
+  receiptNumber: Joi.string().optional(),
+  relatedCarId: Joi.string().optional(),
+  notes: Joi.string().optional()
+});
+
+export const updateExpenseSchema = Joi.object({
+  category: Joi.string().valid('parts', 'labor', 'utilities', 'rent', 'equipment', 'marketing', 'other').optional(),
+  description: Joi.string().optional(),
+  amount: Joi.number().min(0).optional(),
+  date: Joi.date().optional(),
+  paymentMethod: Joi.string().valid('cash', 'card', 'transfer', 'cheque').optional(),
+  vendor: Joi.string().optional(),
+  receiptNumber: Joi.string().optional(),
+  notes: Joi.string().optional()
+}).min(1);
+
+// Receipt validation schema
+export const generateReceiptSchema = Joi.object({
+  customerName: Joi.string().required(),
+  customerEmail: Joi.string().email().required(),
+  customerPhone: Joi.string().required(),
+  amount: Joi.number().min(0).required(),
+  paymentMethod: Joi.string().valid('cash', 'card', 'mpesa', 'bank_transfer', 'insurance').required(),
+  paymentDate: Joi.date().optional(),
+  vehiclePlate: Joi.string().required(),
+  vehicleModel: Joi.string().required(),
+  serviceType: Joi.string().valid('colour_repair', 'clean_shine', 'coat_guard').required(),
+  invoiceNumber: Joi.string().required(),
+  carId: Joi.string().optional()
+});
