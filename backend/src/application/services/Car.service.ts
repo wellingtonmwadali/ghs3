@@ -2,31 +2,42 @@ import { CarRepository } from '../../infrastructure/repositories/Car.repository'
 import { CustomerRepository } from '../../infrastructure/repositories/Customer.repository';
 import { MechanicRepository } from '../../infrastructure/repositories/Mechanic.repository';
 import { InvoiceRepository } from '../../infrastructure/repositories/Invoice.repository';
+import { InventoryService } from './Inventory.service';
 import { ICar, ICarFilters } from '../../domain/entities/Car';
 import { AppError } from '../../presentation/middlewares/error.middleware';
+import { EnhancedError, ErrorFactory, ErrorHandler } from '../../utils/errorHandler';
 
 export class CarService {
   private carRepository: CarRepository;
   private customerRepository: CustomerRepository;
   private mechanicRepository: MechanicRepository;
   private invoiceRepository: InvoiceRepository;
+  private inventoryService: InventoryService;
 
   constructor() {
     this.carRepository = new CarRepository();
     this.customerRepository = new CustomerRepository();
     this.mechanicRepository = new MechanicRepository();
     this.invoiceRepository = new InvoiceRepository();
+    this.inventoryService = new InventoryService();
   }
 
   async createCar(carData: ICar) {
-    // Validate customer exists
-    const customer = await this.customerRepository.findById(carData.customerId);
-    if (!customer) {
-      throw new AppError('Customer not found', 404);
-    }
+    try {
+      // Validate customer exists
+      const customer = await this.customerRepository.findById(carData.customerId);
+      if (!customer) {
+        throw ErrorFactory.notFound('Customer', carData.customerId);
+      }
 
-    // Calculate days in garage
-    carData.daysInGarage = 0;
+      // Check for duplicate vehicle plate in active services
+      const existingCar = await this.carRepository.findByPlateNumber(carData.vehiclePlate, true);
+      if (existingCar) {
+        throw ErrorFactory.duplicateVehiclePlate(carData.vehiclePlate, existingCar.stage);
+      }
+
+      // Calculate days in garage
+      carData.daysInGarage = 0;
 
     // Auto-suggest mechanic if not assigned
     if (!carData.assignedMechanicId) {
@@ -109,10 +120,36 @@ export class CarService {
       updateData.completionDate = new Date();
       updateData.statusProgress = 100;
 
+      // Deduct inventory for parts used
+      if (car.partsUsed && car.partsUsed.length > 0) {
+        try {
+          const partsToDeduct = car.partsUsed.map(part => ({
+            itemId: part.itemId,
+            quantity: part.quantity
+          }));
+          
+          await this.inventoryService.deductMultipleItems(
+            partsToDeduct,
+            `Service completion for car ${car.vehiclePlate}`
+          );
+          
+          console.log(`[INVENTORY] Auto-deducted ${partsToDeduct.length} items for car ${id}`);
+        } catch (error) {
+          console.error('[INVENTORY] Failed to deduct parts:', error);
+          // Don't fail the completion if inventory deduction fails
+          // Log for manual reconciliation
+        }
+      }
+
       // Mark job as completed for mechanic
       if (car.assignedMechanicId) {
         await this.mechanicRepository.completeJob(car.assignedMechanicId, id);
       }
+    }
+    
+    // Update audit trail
+    if (updateData.lastModifiedBy) {
+      updateData.lastModifiedAt = new Date();
     }
 
     // Calculate days in garage

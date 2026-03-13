@@ -17,6 +17,7 @@ const SettingsSchema = new Schema<ISettingsDocument>(
       id: { type: String },
       title: { type: String },
       message: { type: String },
+      imageUrl: { type: String },
       target: { type: String, enum: ['all', 'recurring', 'new', 'high_value'] }
     }],
     announcements: [{
@@ -35,7 +36,8 @@ const SettingsSchema = new Schema<ISettingsDocument>(
     clockInEnabled: { type: Boolean, default: true },
     promotionalDeliveryMethod: {
       email: { type: Boolean, default: true },
-      whatsapp: { type: Boolean, default: false }
+      whatsapp: { type: Boolean, default: false },
+      senderEmail: { type: String }
     },
     companyInfo: {
       name: { type: String },

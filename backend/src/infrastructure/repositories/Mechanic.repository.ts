@@ -64,13 +64,49 @@ export class MechanicRepository {
   }
 
   async getSuggestedMechanic(specialization: string): Promise<IMechanicDocument | null> {
-    // Find available mechanics with matching specialization and lowest workload
+    // Find mechanics with matching specialization
     const mechanics = await MechanicModel.find({
-      $or: [{ specialization }, { specialization: 'all' }],
-      availability: 'available'
-    }).sort({ 'activeJobs.length': 1, 'performance.customerRating': -1 });
+      $or: [{ specialization }, { specialization: 'all' }]
+    }).lean();
     
-    return mechanics[0] || null;
+    if (mechanics.length === 0) return null;
+    
+    // Score each mechanic based on multiple factors
+    const scoredMechanics = mechanics.map((mechanic: any) => {
+      let score = 100;
+      
+      // Factor 1: Availability (highest weight)
+      if (mechanic.availability === 'off') score -= 100; // Exclude
+      else if (mechanic.availability === 'busy') score -= 30;
+      else if (mechanic.availability === 'available') score += 0;
+      
+      // Factor 2: Current workload (lower is better)
+      const activeJobCount = mechanic.activeJobs?.length || 0;
+      score -= activeJobCount * 10;
+      
+      // Factor 3: Performance rating (higher is better)
+      const rating = mechanic.performance?.customerRating || 0;
+      score += rating * 5;
+      
+      // Factor 4: Specialization exactness (exact match better than 'all')
+      if (mechanic.specialization === specialization) score += 10;
+      else if (mechanic.specialization === 'all') score += 5;
+      
+      // Factor 5: Job completion rate (higher is better)
+      const totalJobs = mechanic.performance?.totalJobsCompleted || 0;
+      score += Math.min(totalJobs, 20); // Cap at 20 bonus points
+      
+      return { ...mechanic, score };
+    });
+    
+    // Sort by score descending and return the best match
+    scoredMechanics.sort((a, b) => b.score - a.score);
+    const bestMechanic = scoredMechanics[0];
+    
+    // Don't suggest if score is too low (mechanic is off or overloaded)
+    if (bestMechanic.score < 0) return null;
+    
+    return await MechanicModel.findById(bestMechanic._id);
   }
 
   async getWorkloadDistribution(): Promise<any[]> {

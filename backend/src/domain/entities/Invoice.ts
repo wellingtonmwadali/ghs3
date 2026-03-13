@@ -22,6 +22,10 @@ export interface IInvoice {
   balance: number;
   
   paymentStatus: 'pending' | 'partial' | 'paid';
+  approvalStatus?: 'draft' | 'pending_approval' | 'approved' | 'rejected';
+  approvedBy?: string;
+  approvedByName?: string;
+  approvedAt?: Date;
   
   payments: {
     amount: number;

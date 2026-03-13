@@ -30,6 +30,14 @@ const InvoiceSchema = new Schema<IInvoiceDocument>(
       enum: ['pending', 'partial', 'paid'],
       default: 'pending' 
     },
+    approvalStatus: {
+      type: String,
+      enum: ['draft', 'pending_approval', 'approved', 'rejected'],
+      default: 'pending_approval'
+    },
+    approvedBy: { type: String },
+    approvedByName: { type: String },
+    approvedAt: { type: Date },
     
     payments: [{
       amount: { type: Number, required: true },

@@ -33,6 +33,13 @@ export interface ICar {
   
   damageAssessment?: string;
   partsRequired?: string[];
+  partsUsed?: Array<{
+    itemId: string;
+    itemName: string;
+    quantity: number;
+    unitPrice?: number;
+  }>;
+  laborCost?: number;
   insuranceClaim?: {
     hasInsurance: boolean;
     claimNumber?: string;
@@ -44,6 +51,18 @@ export interface ICar {
   afterPhotos: string[];
   
   notes?: string;
+  inspectionNotes?: string;
+  completionNotes?: string;
+  customServiceDescription?: string;
+  customServiceAmount?: number;
+  
+  // Audit trail
+  createdBy?: string;
+  createdByName?: string;
+  lastModifiedBy?: string;
+  lastModifiedByName?: string;
+  lastModifiedAt?: Date;
+  
   warranty?: {
     hasWarranty: boolean;
     expiryDate?: Date;

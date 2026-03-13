@@ -212,7 +212,7 @@ export class CustomerService {
                 title: promoMessage.title,
                 message: promoMessage.message || '',
                 imageUrl: promoMessage.imageUrl,
-                senderEmail: (settings as any).promotionalDeliveryMethod?.senderEmail
+                senderEmail: settings.promotionalDeliveryMethod?.senderEmail
               });
               
               if (emailSent) {

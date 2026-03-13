@@ -13,6 +13,7 @@ export interface ISettings {
     id: string;
     title: string;
     message: string;
+    imageUrl?: string;
     target: 'all' | 'recurring' | 'new' | 'high_value';
   }[];
   announcements: {
@@ -32,6 +33,7 @@ export interface ISettings {
   promotionalDeliveryMethod: {
     email: boolean;
     whatsapp: boolean;
+    senderEmail?: string;
   };
   companyInfo?: {
     name: string;

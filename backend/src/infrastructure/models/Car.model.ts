@@ -59,12 +59,28 @@ const CarSchema = new Schema<ICarDocument>(
       status: { type: String }
     },
     
+    partsUsed: [{
+      itemId: { type: String },
+      itemName: { type: String },
+      quantity: { type: Number },
+      unitPrice: { type: Number }
+    }],
+    laborCost: { type: Number, default: 0 },
+    
     beforePhotos: [{ type: String }],
     afterPhotos: [{ type: String }],
     
     notes: { type: String },
     inspectionNotes: { type: String },
     completionNotes: { type: String },
+    
+    // Audit trail
+    createdBy: { type: String },
+    createdByName: { type: String },
+    lastModifiedBy: { type: String },
+    lastModifiedByName: { type: String },
+    lastModifiedAt: { type: Date },
+    
     warranty: {
       hasWarranty: { type: Boolean, default: false },
       expiryDate: { type: Date },
@@ -78,5 +94,8 @@ const CarSchema = new Schema<ICarDocument>(
 CarSchema.index({ checkInDate: -1 });
 CarSchema.index({ stage: 1, checkInDate: -1 });
 CarSchema.index({ assignedMechanicId: 1, stage: 1 });
+CarSchema.index({ vehiclePlate: 1, stage: 1 });
+CarSchema.index({ customerId: 1, checkInDate: -1 });
+CarSchema.index({ paymentStatus: 1 });
 
 export const CarModel = mongoose.model<ICarDocument>('Car', CarSchema);

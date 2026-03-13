@@ -46,6 +46,14 @@ export class CarRepository {
     return await CarModel.countDocuments({ stage });
   }
 
+  async findByPlateNumber(vehiclePlate: string, excludeCompleted: boolean = true): Promise<ICarDocument | null> {
+    const query: any = { vehiclePlate: new RegExp(`^${vehiclePlate}$`, 'i') };
+    if (excludeCompleted) {
+      query.stage = { $ne: 'completed' };
+    }
+    return await CarModel.findOne(query);
+  }
+
   async countByFilters(filters: ICarFilters): Promise<number> {
     const query: any = {};
     if (filters.stage) query.stage = filters.stage;
