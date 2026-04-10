@@ -22,7 +22,6 @@ const CustomerSchema = new Schema<ICustomerDocument>(
   { timestamps: true }
 );
 
-CustomerSchema.index({ email: 1 });
 CustomerSchema.index({ phone: 1 });
 CustomerSchema.index({ name: 1 });
 

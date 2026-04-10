@@ -1,20 +1,18 @@
 import { create, StateCreator } from 'zustand';
 import { persist, PersistOptions } from 'zustand/middleware';
-
-interface User {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: string;
-  mechanicId?: string;
-}
+import { AuthUser, TokenPair, SessionInfo } from '@/types';
 
 interface AuthState {
-  user: User | null;
-  token: string | null;
+  user: AuthUser | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+  expiresAt: number | null; // epoch ms when access token expires
+  session: SessionInfo | null;
   isAuthenticated: boolean;
-  setAuth: (user: User, token: string) => void;
+
+  setAuth: (user: AuthUser, token: TokenPair, session: SessionInfo) => void;
+  setAccessToken: (accessToken: string, expiresIn: number) => void;
+  isTokenExpired: () => boolean;
   logout: () => void;
 }
 
@@ -27,25 +25,62 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
-      token: null,
+      accessToken: null,
+      refreshToken: null,
+      expiresAt: null,
+      session: null,
       isAuthenticated: false,
-      setAuth: (user: User, token: string) => {
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(user));
-        set({ user, token, isAuthenticated: true });
+
+      setAuth: (user: AuthUser, token: TokenPair, session: SessionInfo) => {
+        const expiresAt = Date.now() + token.expires_in * 1000;
+        localStorage.setItem('token', token.access_token);
+        set({
+          user,
+          accessToken: token.access_token,
+          refreshToken: token.refresh_token,
+          expiresAt,
+          session,
+          isAuthenticated: true,
+        });
       },
+
+      setAccessToken: (accessToken: string, expiresIn: number) => {
+        const expiresAt = Date.now() + expiresIn * 1000;
+        localStorage.setItem('token', accessToken);
+        set({ accessToken, expiresAt });
+      },
+
+      isTokenExpired: () => {
+        const { expiresAt } = get();
+        if (!expiresAt) return true;
+        // Consider expired 30 seconds early to avoid edge cases
+        return Date.now() >= expiresAt - 30_000;
+      },
+
       logout: () => {
         localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        set({ user: null, token: null, isAuthenticated: false });
+        set({
+          user: null,
+          accessToken: null,
+          refreshToken: null,
+          expiresAt: null,
+          session: null,
+          isAuthenticated: false,
+        });
       },
     }),
     {
       name: 'auth-storage',
       onRehydrateStorage: () => (state) => {
-        // After rehydration, check if user and token exist to set isAuthenticated
-        if (state && state.user && state.token) {
-          state.isAuthenticated = true;
+        if (state && state.user && state.accessToken && state.expiresAt) {
+          // Check if token is still valid on rehydration
+          if (Date.now() < state.expiresAt) {
+            useAuthStore.setState({ isAuthenticated: true });
+          } else {
+            // Token expired — keep refresh token for silent refresh attempt
+            useAuthStore.setState({ isAuthenticated: false, accessToken: null });
+            localStorage.removeItem('token');
+          }
         }
       },
     }

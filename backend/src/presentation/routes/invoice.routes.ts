@@ -13,6 +13,7 @@ router.use(authenticate);
 // Specific routes first
 router.get('/revenue-stats', authorize('owner', 'manager'), invoiceController.getRevenueStats);
 router.get('/outstanding', authorize('owner', 'manager'), invoiceController.getOutstandingInvoices);
+router.post('/generate-from-car/:carId', authorize('owner', 'manager', 'receptionist'), invoiceController.generateFromJobCard);
 
 // Root routes
 router.get('/', invoiceController.getAllInvoices);

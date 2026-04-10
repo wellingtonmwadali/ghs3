@@ -48,11 +48,12 @@ export class MechanicRepository {
     const mechanic = await MechanicModel.findById(mechanicId);
     if (mechanic) {
       const activeJobsLength = (mechanic as any).activeJobs?.length || 0;
+      const jobsAfterRemoval = Math.max(0, activeJobsLength - 1);
       await MechanicModel.findByIdAndUpdate(mechanicId, {
         $pull: { activeJobs: carId },
         $push: { completedJobs: carId },
         $inc: { 'performance.totalJobsCompleted': 1 },
-        availability: activeJobsLength <= 1 ? 'available' : 'busy'
+        availability: jobsAfterRemoval === 0 ? 'available' : 'busy'
       });
     }
   }

@@ -36,14 +36,14 @@ app.use(helmet());
 app.use(securityHeaders);
 app.use(trackSuspiciousActivity);
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (process.env.FRONTEND_URL || 'http://localhost:3000').split(',').map(s => s.trim()),
   credentials: true
 }));
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 1000 // limit each IP to 1000 requests per windowMs
 });
 app.use('/api/', limiter);
 
@@ -98,7 +98,7 @@ const startServer = async () => {
 
     app.listen(PORT, () => {
       console.log(`\n🚀 Server running on port ${PORT}`);
-      console. log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🌐 API: http://localhost:${PORT}/api`);
       console.log(`💚 Health: http://localhost:${PORT}/api/health\n`);
     });

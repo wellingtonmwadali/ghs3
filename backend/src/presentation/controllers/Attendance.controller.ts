@@ -8,14 +8,6 @@ export class AttendanceController {
     try {
       const user = (req as any).user;
       
-      // Validate required geolocation
-      if (!req.body.location || !req.body.location.latitude || !req.body.location.longitude) {
-        return res.status(400).json({
-          success: false,
-          message: 'Geolocation is required for clock in. Please enable location services.'
-        });
-      }
-      
       const attendance = await attendanceService.clockIn({
         mechanicId: user._id || user.userId,
         mechanicName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown',
@@ -36,14 +28,6 @@ export class AttendanceController {
   async clockOut(req: Request, res: Response, next: NextFunction) {
     try {
       const user = (req as any).user;
-      
-      // Validate required geolocation
-      if (!req.body.location || !req.body.location.latitude || !req.body.location.longitude) {
-        return res.status(400).json({
-          success: false,
-          message: 'Geolocation is required for clock out. Please enable location services.'
-        });
-      }
       
       const attendance = await attendanceService.clockOut(user._id || user.userId, {
         location: req.body.location,

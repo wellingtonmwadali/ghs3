@@ -19,7 +19,7 @@ export function useNotify() {
       addNotification({ title, message, type: 'warning' });
     },
     info: (title: string, message: string) => {
-      toast.success(message); // Using success for info as well
+      toast.info(message);
       addNotification({ title, message, type: 'info' });
     },
   };

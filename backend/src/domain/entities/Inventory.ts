@@ -20,6 +20,7 @@ export interface IInventory {
   };
   
   lastRestocked?: Date;
+  lastUsed?: Date;
   
   isActive: boolean;
   

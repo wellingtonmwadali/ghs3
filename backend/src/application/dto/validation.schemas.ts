@@ -1,26 +1,48 @@
 import Joi from 'joi';
 
+const STAGES = [
+  'booked_in', 'waiting_inspection', 'diagnosed', 'awaiting_approval',
+  'awaiting_parts', 'in_repair', 'painting', 'detailing',
+  'quality_check', 'ready_pickup', 'completed', 'collected'
+];
+
 export const createCarSchema = Joi.object({
   customerId: Joi.string().required(),
   customerName: Joi.string().required(),
+  vehicleMake: Joi.string().optional(),
   vehicleModel: Joi.string().required(),
   vehiclePlate: Joi.string().required(),
   vehicleYear: Joi.number().integer().min(1900).max(2030).required(),
   vehicleColor: Joi.string().required(),
+  vehicleMileage: Joi.number().min(0).optional(),
   
   serviceType: Joi.string().valid('colour_repair', 'clean_shine', 'coat_guard').required(),
   services: Joi.array().items(Joi.string()).required(),
+  jobType: Joi.string().valid('walk_in', 'fleet', 'insurance', 'warranty').optional(),
+  priority: Joi.string().valid('low', 'normal', 'high', 'urgent').optional(),
   
-  stage: Joi.string().valid('waiting_inspection', 'in_repair', 'painting', 'detailing', 'quality_check', 'ready_pickup', 'completed').optional(),
+  stage: Joi.string().valid(...STAGES).optional(),
+  
+  complaint: Joi.string().optional(),
   
   assignedMechanicId: Joi.string().optional(),
   assignedMechanicName: Joi.string().optional(),
+  assignedTechnicians: Joi.array().items(Joi.object({
+    technicianId: Joi.string().required(),
+    technicianName: Joi.string().required()
+  })).optional(),
+  bayNumber: Joi.string().optional(),
   
   estimatedCost: Joi.number().min(0).required(),
   expectedCompletionDate: Joi.date().required(),
   
   damageAssessment: Joi.string().optional(),
   partsRequired: Joi.array().items(Joi.string()).optional(),
+  customerSuppliedParts: Joi.array().items(Joi.object({
+    name: Joi.string().required(),
+    quantity: Joi.number().min(1).required(),
+    notes: Joi.string().optional()
+  })).optional(),
   insuranceClaim: Joi.object({
     hasInsurance: Joi.boolean(),
     claimNumber: Joi.string().optional(),
@@ -33,18 +55,52 @@ export const createCarSchema = Joi.object({
 });
 
 export const updateCarSchema = Joi.object({
-  stage: Joi.string().valid('waiting_inspection', 'in_repair', 'painting', 'detailing', 'quality_check', 'ready_pickup', 'completed').optional(),
+  stage: Joi.string().valid(...STAGES).optional(),
   statusProgress: Joi.number().min(0).max(100).optional(),
+  
+  complaint: Joi.string().optional(),
+  diagnosis: Joi.string().optional(),
   
   assignedMechanicId: Joi.string().optional(),
   assignedMechanicName: Joi.string().optional(),
+  assignedTechnicians: Joi.array().items(Joi.object({
+    technicianId: Joi.string().required(),
+    technicianName: Joi.string().required()
+  })).optional(),
+  bayNumber: Joi.string().optional(),
+  
+  jobType: Joi.string().valid('walk_in', 'fleet', 'insurance', 'warranty').optional(),
+  priority: Joi.string().valid('low', 'normal', 'high', 'urgent').optional(),
+
+  approvalStatus: Joi.string().valid('pending', 'approved', 'rejected').optional(),
+  approvalNotes: Joi.string().optional(),
   
   actualCost: Joi.number().min(0).optional(),
   paidAmount: Joi.number().min(0).optional(),
   paymentStatus: Joi.string().valid('pending', 'partial', 'paid').optional(),
   
+  laborLines: Joi.array().items(Joi.object({
+    description: Joi.string().required(),
+    technicianId: Joi.string().optional(),
+    technicianName: Joi.string().optional(),
+    hours: Joi.number().min(0).required(),
+    rate: Joi.number().min(0).required(),
+    total: Joi.number().min(0).required()
+  })).optional(),
+  
+  customerSuppliedParts: Joi.array().items(Joi.object({
+    name: Joi.string().required(),
+    quantity: Joi.number().min(1).required(),
+    notes: Joi.string().optional()
+  })).optional(),
+  
   afterPhotos: Joi.array().items(Joi.string()).optional(),
   notes: Joi.string().optional(),
+  inspectionNotes: Joi.string().optional(),
+  completionNotes: Joi.string().optional(),
+  
+  isPaused: Joi.boolean().optional(),
+  pauseReason: Joi.string().when('isPaused', { is: true, then: Joi.required() }),
   
   warranty: Joi.object({
     hasWarranty: Joi.boolean(),
@@ -73,11 +129,26 @@ export const registerSchema = Joi.object({
   mechanicId: Joi.string().optional()
 });
 
+export const refreshTokenSchema = Joi.object({
+  refresh_token: Joi.string().required()
+});
+
+export const changePasswordSchema = Joi.object({
+  currentPassword: Joi.string().required(),
+  newPassword: Joi.string()
+    .min(8)
+    .pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]'))
+    .required()
+    .messages({
+      'string.pattern.base': 'Password must contain uppercase, lowercase, number, and special character'
+    })
+});
+
 export const clockInSchema = Joi.object({
   location: Joi.object({
     latitude: Joi.number().min(-90).max(90).required(),
     longitude: Joi.number().min(-180).max(180).required()
-  }).required(),
+  }).optional(),
   notes: Joi.string().max(500).optional()
 });
 
@@ -85,7 +156,7 @@ export const clockOutSchema = Joi.object({
   location: Joi.object({
     latitude: Joi.number().min(-90).max(90).required(),
     longitude: Joi.number().min(-180).max(180).required()
-  }).required(),
+  }).optional(),
   notes: Joi.string().max(500).optional()
 });
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, Eye, Mail, Phone, MapPin, Download } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Eye, Mail, Phone, MapPin, Download, Users } from 'lucide-react';
+import { formatCurrency } from '@/lib/format-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,10 +15,21 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from '@/components/ui/sheet';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import api from '@/lib/api';
 import * as XLSX from 'xlsx';
 import { useToast } from '@/components/ui/toast';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { PageSkeleton } from '@/components/shared/PageSkeleton';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 interface Customer {
   _id: string;
@@ -176,13 +188,6 @@ export default function CustomersPage() {
     });
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
-
   const getTotalSpent = (customer: Customer) => {
     if (!customer.serviceHistory || customer.serviceHistory.length === 0) return 0;
     return customer.serviceHistory.reduce((sum, service) => sum + service.cost, 0);
@@ -289,15 +294,12 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="h-full p-8">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Customers</h1>
-          <p className="mt-2 text-muted-foreground">
-            Manage customer information and history
-          </p>
-        </div>
-        <div className="flex gap-2">
+    <div className="space-y-6 p-6">
+      <PageHeader
+        title="Customers"
+        description="Manage customer information and history"
+        action={
+          <div className="flex gap-2">
           {isPromoMode ? (
             <>
               <div className="flex items-center gap-2 mr-4">
@@ -362,8 +364,9 @@ export default function CustomersPage() {
               </Button>
             </>
           )}
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       <Card className="p-6">
         <div className="mb-6 space-y-4">
@@ -464,8 +467,8 @@ export default function CustomersPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={isPromoMode ? 7 : 7} className="text-center">
-                    <LoadingSpinner size="sm" text="Loading customers..." />
+                  <TableCell colSpan={isPromoMode ? 7 : 7} className="text-center py-8 text-muted-foreground">
+                    Loading customers...
                   </TableCell>
                 </TableRow>
               ) : customers.length === 0 ? (
@@ -528,13 +531,16 @@ export default function CustomersPage() {
         </div>
       </Card>
 
-      {/* Add Customer Dialog */}
-      {showAddDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <Card className="w-full max-w-lg p-6">
-            <h2 className="mb-6 text-2xl font-semibold">Add New Customer</h2>
-            <form onSubmit={handleAddCustomer}>
-              <div className="space-y-4">
+      {/* Add Customer Sheet */}
+      <Sheet open={showAddDialog} onOpenChange={(open) => { if (!open) { setShowAddDialog(false); resetForm(); } }}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Add New Customer</SheetTitle>
+          </SheetHeader>
+          <Separator className="my-4" />
+          <form onSubmit={handleAddCustomer}>
+            <ScrollArea className="h-[calc(100vh-200px)]">
+              <div className="space-y-4 pr-2">
                 <div>
                   <Label htmlFor="name">Name *</Label>
                   <Input
@@ -594,31 +600,28 @@ export default function CustomersPage() {
                   />
                 </div>
               </div>
-              <div className="mt-6 flex justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowAddDialog(false);
-                    resetForm();
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">Add Customer</Button>
-              </div>
-            </form>
-          </Card>
-        </div>
-      )}
+            </ScrollArea>
+            <Separator className="my-4" />
+            <SheetFooter>
+              <Button type="button" variant="outline" onClick={() => { setShowAddDialog(false); resetForm(); }}>
+                Cancel
+              </Button>
+              <Button type="submit">Add Customer</Button>
+            </SheetFooter>
+          </form>
+        </SheetContent>
+      </Sheet>
 
-      {/* Edit Customer Dialog */}
-      {showEditDialog && selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <Card className="w-full max-w-lg p-6">
-            <h2 className="mb-6 text-2xl font-semibold">Edit Customer</h2>
-            <form onSubmit={handleEditCustomer}>
-              <div className="space-y-4">
+      {/* Edit Customer Sheet */}
+      <Sheet open={showEditDialog && !!selectedCustomer} onOpenChange={(open) => { if (!open) { setShowEditDialog(false); setSelectedCustomer(null); resetForm(); } }}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Edit Customer</SheetTitle>
+          </SheetHeader>
+          <Separator className="my-4" />
+          <form onSubmit={handleEditCustomer}>
+            <ScrollArea className="h-[calc(100vh-200px)]">
+              <div className="space-y-4 pr-2">
                 <div>
                   <Label htmlFor="edit-name">Name *</Label>
                   <Input
@@ -678,32 +681,27 @@ export default function CustomersPage() {
                   />
                 </div>
               </div>
-              <div className="mt-6 flex justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowEditDialog(false);
-                    setSelectedCustomer(null);
-                    resetForm();
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">Save Changes</Button>
-              </div>
-            </form>
-          </Card>
-        </div>
-      )}
+            </ScrollArea>
+            <Separator className="my-4" />
+            <SheetFooter>
+              <Button type="button" variant="outline" onClick={() => { setShowEditDialog(false); setSelectedCustomer(null); resetForm(); }}>
+                Cancel
+              </Button>
+              <Button type="submit">Save Changes</Button>
+            </SheetFooter>
+          </form>
+        </SheetContent>
+      </Sheet>
 
-      {/* View Customer Dialog */}
-      {showViewDialog && selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <Card className="w-full max-w-2xl p-6">
-            <h2 className="mb-6 text-2xl font-semibold">Customer Details</h2>
-            
-            <div className="mb-6 space-y-4">
+      {/* View Customer Sheet */}
+      <Sheet open={showViewDialog && !!selectedCustomer} onOpenChange={(open) => { if (!open) { setShowViewDialog(false); setSelectedCustomer(null); } }}>
+        <SheetContent className="sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>Customer Details</SheetTitle>
+          </SheetHeader>
+          <Separator className="my-4" />
+          {selectedCustomer && (
+            <ScrollArea className="h-[calc(100vh-160px)]">
               <div>
                 <h3 className="text-lg font-semibold">{selectedCustomer.name}</h3>
                 <div className="mt-2 space-y-2 text-sm text-muted-foreground">
@@ -762,69 +760,60 @@ export default function CustomersPage() {
                   <p className="text-sm text-muted-foreground">No service history yet</p>
                 )}
               </div>
-            </div>
+            </ScrollArea>
+          )}
+        </SheetContent>
+      </Sheet>
 
-            <div className="flex justify-end">
-              <Button
-                onClick={() => {
-                  setShowViewDialog(false);
-                  setSelectedCustomer(null);
-                }}
-              >
-                Close
-              </Button>
+      {/* Export to Excel Sheet */}
+      <Sheet open={showExportDialog} onOpenChange={(open) => { if (!open) { setShowExportDialog(false); setExportDateRange({ startDate: '', endDate: '' }); } }}>
+        <SheetContent className="sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Export Customers to Excel</SheetTitle>
+          </SheetHeader>
+          <Separator className="my-4" />
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Select a date range to filter customers by their registration date. Leave empty to export all customers.
+            </p>
+            <div>
+              <Label htmlFor="startDate">Start Date</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={exportDateRange.startDate}
+                onChange={(e) => setExportDateRange({ ...exportDateRange, startDate: e.target.value })}
+              />
             </div>
-          </Card>
-        </div>
-      )}
-
-      {/* Export to Excel Dialog */}
-      {showExportDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <Card className="w-full max-w-md p-6">
-            <h2 className="mb-6 text-2xl font-semibold">Export Customers to Excel</h2>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Select a date range to filter customers by their registration date. Leave empty to export all customers.
-              </p>
-              <div>
-                <Label htmlFor="startDate">Start Date</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={exportDateRange.startDate}
-                  onChange={(e) => setExportDateRange({ ...exportDateRange, startDate: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="endDate">End Date</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={exportDateRange.endDate}
-                  onChange={(e) => setExportDateRange({ ...exportDateRange, endDate: e.target.value })}
-                />
-              </div>
+            <div>
+              <Label htmlFor="endDate">End Date</Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={exportDateRange.endDate}
+                onChange={(e) => setExportDateRange({ ...exportDateRange, endDate: e.target.value })}
+              />
             </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setShowExportDialog(false);
-                  setExportDateRange({ startDate: '', endDate: '' });
-                }}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleExportToExcel}>
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+          </div>
+          <Separator className="my-4" />
+          <SheetFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowExportDialog(false);
+                setExportDateRange({ startDate: '', endDate: '' });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleExportToExcel}>
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

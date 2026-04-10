@@ -2,27 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Search, FileText, DollarSign, Clock, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/components/ui/toast';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { Card, CardContent } from '@/components/ui/card';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/toast';
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
+} from '@/components/ui/sheet';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { PageSkeleton } from '@/components/shared/PageSkeleton';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { KPICard } from '@/components/shared/KPICard';
 
 interface Invoice {
   _id: string;
@@ -147,7 +145,6 @@ export default function InvoicesPage() {
   };
 
   const handlePrint = (invoice: Invoice) => {
-    // Implement print functionality
     window.print();
   };
 
@@ -164,16 +161,16 @@ export default function InvoicesPage() {
 
   const submitPayment = async () => {
     if (!selectedInvoice) return;
-    
+
     try {
       const token = localStorage.getItem('token');
       const amount = parseFloat(paymentData.amount);
-      
+
       if (isNaN(amount) || amount <= 0) {
         toast.error('Please enter a valid payment amount');
         return;
       }
-      
+
       if (amount > selectedInvoice.balance) {
         toast.error('Payment amount cannot exceed balance');
         return;
@@ -198,21 +195,17 @@ export default function InvoicesPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      partial: 'bg-blue-100 text-blue-800',
-      paid: 'bg-green-100 text-green-800'
+  const getStatusVariant = (status: string): 'warning' | 'default' | 'success' | 'secondary' => {
+    const map: Record<string, 'warning' | 'default' | 'success' | 'secondary'> = {
+      pending: 'warning',
+      partial: 'default',
+      paid: 'success'
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    return map[status] || 'secondary';
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <LoadingSpinner size="lg" text="Loading invoices..." />
-      </div>
-    );
+    return <PageSkeleton />;
   }
 
   const totalRevenue = invoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
@@ -220,67 +213,35 @@ export default function InvoicesPage() {
   const paidInvoices = invoices.filter(inv => inv.paymentStatus === 'paid').length;
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Invoice Management</h1>
-        <p className="text-gray-600">Track and manage customer invoices</p>
-      </div>
+    <div className="space-y-6 p-6">
+      <PageHeader
+        title="Invoice Management"
+        description="Track and manage customer invoices"
+      />
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Invoices</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{invoices.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Revenue</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              Ksh {totalRevenue.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Pending Payments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              Ksh {pendingPayments.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Paid Invoices</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{paidInvoices}</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KPICard title="Total Invoices" value={invoices.length} icon={FileText} iconColor="text-primary" iconBg="bg-primary/10" />
+        <KPICard title="Total Revenue" value={`Ksh ${totalRevenue.toLocaleString()}`} icon={DollarSign} iconColor="text-success" iconBg="bg-success/10" />
+        <KPICard title="Pending Payments" value={`Ksh ${pendingPayments.toLocaleString()}`} icon={Clock} iconColor="text-warning" iconBg="bg-warning/10" />
+        <KPICard title="Paid Invoices" value={paidInvoices} icon={CheckCircle2} iconColor="text-success" iconBg="bg-success/10" />
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Invoices</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="flex gap-4 mb-4">
-            <Input
-              placeholder="Search invoices..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
-            />
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search invoices..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="border rounded-md px-3 py-2"
+              className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">All Statuses</option>
               <option value="pending">Pending</option>
@@ -289,196 +250,204 @@ export default function InvoicesPage() {
             </select>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Invoice #</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Vehicle</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Paid</TableHead>
-                <TableHead>Balance</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Issue Date</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredInvoices.map((invoice) => (
-                <TableRow key={invoice._id}>
-                  <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                  <TableCell>{typeof invoice.customerId === 'object' ? invoice.customerId?.name : 'N/A'}</TableCell>
-                  <TableCell>{typeof invoice.carId === 'object' && invoice.carId ? `${invoice.carId.vehicleModel} (${invoice.carId.vehiclePlate})` : 'N/A'}</TableCell>
-                  <TableCell>Ksh {(invoice.total || 0).toLocaleString()}</TableCell>
-                  <TableCell>Ksh {(invoice.paidAmount || 0).toLocaleString()}</TableCell>
-                  <TableCell>Ksh {(invoice.balance || 0).toLocaleString()}</TableCell>
-                  <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs capitalize ${getStatusBadge(invoice.paymentStatus)}`}>
-                      {invoice.paymentStatus}
-                    </span>
-                  </TableCell>
-                  <TableCell>{new Date(invoice.issuedDate).toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => handleView(invoice)}>
-                        View
-                      </Button>
-                      {invoice.paymentStatus !== 'paid' && (
-                        <Button size="sm" onClick={() => handleRecordPayment(invoice)}>
-                          Record Payment
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" onClick={() => handlePrint(invoice)}>
-                        Print
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => handleDelete(invoice._id)}>
-                        Delete
-                      </Button>
-                    </div>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Invoice #</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Vehicle</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Paid</TableHead>
+                  <TableHead>Balance</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Issue Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredInvoices.map((invoice) => (
+                  <TableRow key={invoice._id}>
+                    <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
+                    <TableCell>{typeof invoice.customerId === 'object' ? invoice.customerId?.name : 'N/A'}</TableCell>
+                    <TableCell>{typeof invoice.carId === 'object' && invoice.carId ? `${invoice.carId.vehicleModel} (${invoice.carId.vehiclePlate})` : 'N/A'}</TableCell>
+                    <TableCell>Ksh {(invoice.total || 0).toLocaleString()}</TableCell>
+                    <TableCell className="text-success">Ksh {(invoice.paidAmount || 0).toLocaleString()}</TableCell>
+                    <TableCell className="text-warning">Ksh {(invoice.balance || 0).toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusVariant(invoice.paymentStatus)} className="capitalize">
+                        {invoice.paymentStatus}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(invoice.issuedDate).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1">
+                        <Button size="sm" variant="outline" onClick={() => handleView(invoice)}>
+                          View
+                        </Button>
+                        {invoice.paymentStatus !== 'paid' && (
+                          <Button size="sm" onClick={() => handleRecordPayment(invoice)}>
+                            Pay
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => handlePrint(invoice)}>
+                          Print
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleDelete(invoice._id)}>
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
 
           {filteredInvoices.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No invoices found
-            </div>
+            <EmptyState icon={FileText} title="No invoices found" description="Try adjusting your search or filters" />
           )}
         </CardContent>
       </Card>
 
-      {/* View Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Invoice Details</DialogTitle>
-          </DialogHeader>
+      {/* View Invoice Sheet */}
+      <Sheet open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <SheetContent className="sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>Invoice Details</SheetTitle>
+          </SheetHeader>
+          <Separator className="my-4" />
           {selectedInvoice && (
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-gray-600">Invoice Number</Label>
-                  <p className="font-medium">{selectedInvoice.invoiceNumber}</p>
+            <ScrollArea className="h-[calc(100vh-200px)]">
+              <div className="space-y-6 pr-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Invoice Number</Label>
+                    <p className="font-medium">{selectedInvoice.invoiceNumber}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Customer</Label>
+                    <p className="font-medium">{typeof selectedInvoice.customerId === 'object' ? selectedInvoice.customerId.name : 'N/A'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Vehicle</Label>
+                    <p className="font-medium">{typeof selectedInvoice.carId === 'object' ? `${selectedInvoice.carId.vehicleModel} (${selectedInvoice.carId.vehiclePlate})` : 'N/A'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Payment Status</Label>
+                    <div className="mt-1">
+                      <Badge variant={getStatusVariant(selectedInvoice.paymentStatus)} className="capitalize">
+                        {selectedInvoice.paymentStatus}
+                      </Badge>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-gray-600">Customer</Label>
-                  <p className="font-medium">{typeof selectedInvoice.customerId === 'object' ? selectedInvoice.customerId.name : 'N/A'}</p>
-                </div>
-                <div>
-                  <Label className="text-sm text-gray-500">Vehicle</Label>
-                  <p className="font-medium">{typeof selectedInvoice.carId === 'object' ? `${selectedInvoice.carId.vehicleModel} (${selectedInvoice.carId.vehiclePlate})` : 'N/A'}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Payment Status</Label>
-                  <span className={`px-2 py-1 rounded-full text-xs capitalize ${getStatusBadge(selectedInvoice.paymentStatus)}`}>
-                    {selectedInvoice.paymentStatus}
-                  </span>
-                </div>
-              </div>
 
-              <div>
-                <Label className="text-gray-600 mb-2 block">Items</Label>
-                <div className="border rounded-md p-3 space-y-2">
-                  {selectedInvoice.items && selectedInvoice.items.length > 0 ? (
-                    selectedInvoice.items.map((item, index) => (
-                      <div key={index} className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <span className="text-sm">{item.description}</span>
-                          <span className="text-xs text-gray-500 ml-2">(Qty: {item.quantity})</span>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-2 block">Items</Label>
+                  <div className="rounded-md border p-3 space-y-2">
+                    {selectedInvoice.items && selectedInvoice.items.length > 0 ? (
+                      selectedInvoice.items.map((item, index) => (
+                        <div key={index} className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <span className="text-sm">{item.description}</span>
+                            <span className="text-xs text-muted-foreground ml-2">(Qty: {item.quantity})</span>
+                          </div>
+                          <span className="font-medium">Ksh {item.total.toLocaleString()}</span>
                         </div>
-                        <span className="font-medium">Ksh {item.total.toLocaleString()}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No items</p>
-                  )}
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No items</p>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="border-t pt-4">
+                <Separator />
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span>Subtotal:</span>
+                    <span className="text-muted-foreground">Subtotal:</span>
                     <span>Ksh {(selectedInvoice.subtotal || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Tax ({selectedInvoice.taxRate || 0}%):</span>
+                    <span className="text-muted-foreground">Tax ({selectedInvoice.taxRate || 0}%):</span>
                     <span>Ksh {(selectedInvoice.tax || 0).toLocaleString()}</span>
                   </div>
                   {selectedInvoice.discount && selectedInvoice.discount > 0 && (
-                    <div className="flex justify-between text-green-600">
+                    <div className="flex justify-between text-success">
                       <span>Discount:</span>
                       <span>- Ksh {selectedInvoice.discount.toLocaleString()}</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-bold text-lg border-t pt-2">
+                  <Separator />
+                  <div className="flex justify-between font-bold text-lg">
                     <span>Total:</span>
                     <span>Ksh {(selectedInvoice.total || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-green-600">
+                  <div className="flex justify-between text-success">
                     <span>Amount Paid:</span>
                     <span>Ksh {(selectedInvoice.paidAmount || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-yellow-600 font-bold">
+                  <div className="flex justify-between text-warning font-bold">
                     <span>Balance:</span>
                     <span>Ksh {(selectedInvoice.balance || 0).toLocaleString()}</span>
                   </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4 border-t pt-4">
-                <div>
-                  <Label className="text-gray-600">Issue Date</Label>
-                  <p className="font-medium">{new Date(selectedInvoice.issuedDate).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Due Date</Label>
-                  <p className="font-medium">{new Date(selectedInvoice.dueDate).toLocaleDateString()}</p>
+                <Separator />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Issue Date</Label>
+                    <p className="font-medium">{new Date(selectedInvoice.issuedDate).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Due Date</Label>
+                    <p className="font-medium">{new Date(selectedInvoice.dueDate).toLocaleDateString()}</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            </ScrollArea>
           )}
-          <DialogFooter>
+          <Separator className="my-4" />
+          <SheetFooter>
             <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
               Close
             </Button>
             <Button onClick={() => selectedInvoice && handlePrint(selectedInvoice)}>
               Print Invoice
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      {/* Record Payment Dialog */}
-      <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record Payment</DialogTitle>
-          </DialogHeader>
+      {/* Record Payment Sheet */}
+      <Sheet open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Record Payment</SheetTitle>
+          </SheetHeader>
+          <Separator className="my-4" />
           {selectedInvoice && (
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50 rounded-md">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 p-3 rounded-md bg-muted/50">
                 <div>
-                  <Label className="text-xs text-gray-600">Invoice #</Label>
+                  <Label className="text-xs text-muted-foreground">Invoice #</Label>
                   <p className="font-medium">{selectedInvoice.invoiceNumber}</p>
                 </div>
                 <div>
-                  <Label className="text-xs text-gray-600">Customer</Label>
+                  <Label className="text-xs text-muted-foreground">Customer</Label>
                   <p className="font-medium">{typeof selectedInvoice.customerId === 'object' ? selectedInvoice.customerId.name : 'N/A'}</p>
                 </div>
                 <div>
-                  <Label className="text-xs text-gray-600">Total Amount</Label>
+                  <Label className="text-xs text-muted-foreground">Total Amount</Label>
                   <p className="font-medium">Ksh {(selectedInvoice.total || 0).toLocaleString()}</p>
                 </div>
                 <div>
-                  <Label className="text-xs text-gray-600">Balance Due</Label>
-                  <p className="font-bold text-yellow-600">Ksh {(selectedInvoice.balance || 0).toLocaleString()}</p>
+                  <Label className="text-xs text-muted-foreground">Balance Due</Label>
+                  <p className="font-bold text-warning">Ksh {(selectedInvoice.balance || 0).toLocaleString()}</p>
                 </div>
               </div>
 
-              <div className="grid gap-2">
+              <div>
                 <Label htmlFor="payment-amount">Payment Amount *</Label>
                 <Input
                   id="payment-amount"
@@ -492,13 +461,13 @@ export default function InvoicesPage() {
                 />
               </div>
 
-              <div className="grid gap-2">
+              <div>
                 <Label htmlFor="payment-method">Payment Method *</Label>
                 <select
                   id="payment-method"
                   value={paymentData.method}
                   onChange={(e) => setPaymentData({ ...paymentData, method: e.target.value })}
-                  className="border rounded-md px-3 py-2"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <option value="cash">Cash</option>
                   <option value="card">Card</option>
@@ -508,7 +477,7 @@ export default function InvoicesPage() {
                 </select>
               </div>
 
-              <div className="grid gap-2">
+              <div>
                 <Label htmlFor="payment-pid">Payment Transaction ID (PID)</Label>
                 <Input
                   id="payment-pid"
@@ -517,10 +486,10 @@ export default function InvoicesPage() {
                   value={paymentData.paymentPID}
                   onChange={(e) => setPaymentData({ ...paymentData, paymentPID: e.target.value })}
                 />
-                <p className="text-xs text-gray-500">Enter M-Pesa code, bank reference, or transaction ID</p>
+                <p className="text-xs text-muted-foreground mt-1">Enter M-Pesa code, bank reference, or transaction ID</p>
               </div>
 
-              <div className="grid gap-2">
+              <div>
                 <Label htmlFor="payment-reference">Additional Reference/Notes</Label>
                 <Input
                   id="payment-reference"
@@ -532,38 +501,42 @@ export default function InvoicesPage() {
               </div>
 
               {selectedInvoice.payments && selectedInvoice.payments.length > 0 && (
-                <div className="border-t pt-3">
-                  <Label className="text-sm font-medium mb-2 block">Payment History</Label>
-                  <div className="space-y-2 max-h-32 overflow-y-auto">
-                    {selectedInvoice.payments.map((payment, idx) => (
-                      <div key={idx} className="text-xs p-2 bg-gray-50 rounded">
-                        <div className="flex justify-between">
-                          <span className="font-medium">Ksh {payment.amount.toLocaleString()}</span>
-                          <span className="text-gray-600">{new Date(payment.paidAt).toLocaleDateString()}</span>
+                <>
+                  <Separator />
+                  <div>
+                    <Label className="text-sm font-medium mb-2 block">Payment History</Label>
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {selectedInvoice.payments.map((payment, idx) => (
+                        <div key={idx} className="text-xs p-2 rounded-md bg-muted/50">
+                          <div className="flex justify-between">
+                            <span className="font-medium">Ksh {payment.amount.toLocaleString()}</span>
+                            <span className="text-muted-foreground">{new Date(payment.paidAt).toLocaleDateString()}</span>
+                          </div>
+                          <div className="flex justify-between mt-1">
+                            <span className="text-muted-foreground capitalize">{payment.method}</span>
+                            {payment.paymentPID && (
+                              <span className="text-primary font-mono">{payment.paymentPID}</span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex justify-between mt-1">
-                          <span className="text-gray-600 capitalize">{payment.method}</span>
-                          {payment.paymentPID && (
-                            <span className="text-blue-600 font-mono">{payment.paymentPID}</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
           )}
-          <DialogFooter>
+          <Separator className="my-4" />
+          <SheetFooter>
             <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
               Cancel
             </Button>
             <Button onClick={submitPayment}>
               Record Payment
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

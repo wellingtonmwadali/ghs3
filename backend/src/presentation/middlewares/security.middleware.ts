@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit';
 // Rate limiter for login endpoint - stricter limit
 export const loginRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per 15 minutes
+  max: 20, // 20 attempts per 15 minutes
   message: 'Too many login attempts. Please try again after 15 minutes.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -144,7 +144,7 @@ export const trackSuspiciousActivity = (req: Request, res: Response, next: NextF
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
   const now = Date.now();
   const timeWindow = 60000; // 1 minute
-  const suspiciousThreshold = 100; // 100 requests per minute
+  const suspiciousThreshold = 500; // 500 requests per minute
   
   if (!requestTracker.has(ip)) {
     requestTracker.set(ip, { count: 1, firstRequest: now, suspicious: false });

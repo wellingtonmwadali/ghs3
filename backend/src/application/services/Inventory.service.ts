@@ -48,7 +48,7 @@ export class InventoryService {
     }
 
     if (options.lowStock) {
-      query.$expr = { $lte: ['$quantityInStock', '$reorderLevel'] };
+      query.$expr = { $lte: ['$quantity', '$minStockLevel'] };
     }
 
     const items = await this.inventoryRepository.findWithPagination(query, skip, limit);

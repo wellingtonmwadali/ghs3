@@ -129,7 +129,18 @@ export class AttendanceService {
       }).sort({ date: -1 });
 
       if (records.length === 0) {
-        throw new Error('No attendance records found for the specified period');
+        const diffTime = Math.abs(new Date(endDate).getTime() - new Date(startDate).getTime());
+        const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return {
+          mechanicId,
+          mechanicName: 'Unknown',
+          totalDays,
+          presentDays: 0,
+          absentDays: totalDays,
+          totalHours: 0,
+          averageHoursPerDay: 0,
+          attendanceRecords: []
+        };
       }
 
       const presentDays = records.filter(r => r.status === 'clocked-out').length;

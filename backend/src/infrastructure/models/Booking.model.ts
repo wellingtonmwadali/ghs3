@@ -5,6 +5,7 @@ export interface IBookingDocument extends Omit<IBooking, '_id'>, Document {}
 
 const BookingSchema = new Schema<IBookingDocument>(
   {
+    bookingReference: { type: String, unique: true, sparse: true },
     customerName: { type: String, required: true },
     customerEmail: { type: String, required: true, lowercase: true },
     customerPhone: { type: String, required: true },    customerGender: { type: String, enum: ['male', 'female', 'other'] },    

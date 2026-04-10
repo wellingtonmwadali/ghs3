@@ -1,6 +1,7 @@
 // Domain Entity: Booking
 export interface IBooking {
   _id?: string;
+  bookingReference?: string;
   customerName: string;
   customerEmail: string;
   customerPhone: string;

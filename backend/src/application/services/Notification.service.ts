@@ -46,9 +46,11 @@ export class NotificationService {
         // Check against custom threshold if set
         if (settings.notifications?.inventory?.customThreshold) {
           const threshold = settings.notifications.inventory.customThreshold;
-          const percentageRemaining = (item.quantity / item.minStockLevel) * 100;
-          if (percentageRemaining <= threshold) {
-            return true;
+          if (item.minStockLevel > 0) {
+            const percentageRemaining = (item.quantity / item.minStockLevel) * 100;
+            if (percentageRemaining <= threshold) {
+              return true;
+            }
           }
         }
         

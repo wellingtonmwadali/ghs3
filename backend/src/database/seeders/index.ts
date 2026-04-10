@@ -9,6 +9,12 @@ import { InventoryModel } from '../../infrastructure/models/Inventory.model';
 import { UserModel } from '../../infrastructure/models/User.model';
 import { CarModel } from '../../infrastructure/models/Car.model';
 
+// Access Counter model used for auto-increment userId
+const Counter = mongoose.models.Counter || mongoose.model('Counter', new mongoose.Schema({
+  _id: { type: String, required: true },
+  seq: { type: Number, default: 0 },
+}));
+
 const seedDatabase = async () => {
   try {
     console.log('🌱 Seeding database...\n');
@@ -23,7 +29,8 @@ const seedDatabase = async () => {
       ServiceModel.deleteMany({}),
       InventoryModel.deleteMany({}),
       UserModel.deleteMany({}),
-      CarModel.deleteMany({})
+      CarModel.deleteMany({}),
+      Counter.deleteMany({})
     ]);
     console.log('🗑️  Cleared existing data\n');
 
@@ -332,39 +339,51 @@ const seedDatabase = async () => {
     ]);
     console.log(`✅ Seeded ${mechanics.length} mechanics`);
 
-    // Seed Users
-    const users = await UserModel.insertMany([
+    // Seed Users — use create() so pre-save hooks fire (auto userId, password hash)
+    const users = await UserModel.create([
       {
         firstName: 'Admin',
         lastName: 'Owner',
         email: 'admin@garage.co.ke',
-        password: '$2a$12$5NIYlaphHKKE4ZzMHjdV5.4VFx9WRT9LZf0nnWdWy5K.G/BZZebqm',
+        password: 'Admin@1234',
         role: 'owner',
+        phone: '+254700000001',
+        branch: 'Main Branch',
+        department: 'Management',
         isActive: true
       },
       {
         firstName: 'Manager',
         lastName: 'Kipchoge',        
         email: 'manager@garage.co.ke',
-        password: '$2a$12$5NIYlaphHKKE4ZzMHjdV5.4VFx9WRT9LZf0nnWdWy5K.G/BZZebqm',
+        password: 'Admin@1234',
         role: 'manager',
+        phone: '+254700000002',
+        branch: 'Main Branch',
+        department: 'Operations',
         isActive: true
       },
       {
         firstName: 'John',
         lastName: 'Kamau',
         email: 'mechanic@garage.co.ke',
-       password: '$2a$12$5NIYlaphHKKE4ZzMHjdV5.4VFx9WRT9LZf0nnWdWy5K.G/BZZebqm',
+        password: 'Admin@1234',
         role: 'mechanic',
         mechanicId: mechanics[0]._id,
+        phone: '+254712345678',
+        branch: 'Main Branch',
+        department: 'Workshop',
         isActive: true
       },
       {
         firstName: 'Jane',
         lastName: 'Achieng',
         email: 'receptionist@garage.co.ke',
-        password: '$2a$12$5NIYlaphHKKE4ZzMHjdV5.4VFx9WRT9LZf0nnWdWy5K.G/BZZebqm',
+        password: 'Admin@1234',
         role: 'receptionist',
+        phone: '+254700000004',
+        branch: 'Main Branch',
+        department: 'Front Office',
         isActive: true
       }
     ]);
@@ -398,7 +417,6 @@ const seedDatabase = async () => {
         serviceHistory: []
       }
     ]);
-    console.log(`✅ Seeded ${customers.length} customers`);
     console.log(`✅ Seeded ${customers.length} customers`);
 
     // Seed Services
@@ -688,10 +706,10 @@ const seedDatabase = async () => {
 
     console.log('\n✨ Database seeding completed successfully!\n');
     console.log('📧 Login credentials:');
-    console.log('   Owner: admin@garage.co.ke / admin123');
-    console.log('   Manager: manager@garage.co.ke / manager123');
-    console.log('   Mechanic: mechanic@garage.co.ke / mechanic123');
-    console.log('   Receptionist: receptionist@garage.co.ke / receptionist123\n');
+    console.log('   Owner: admin@garage.co.ke / Admin@1234');
+    console.log('   Manager: manager@garage.co.ke / Admin@1234');
+    console.log('   Mechanic: mechanic@garage.co.ke / Admin@1234');
+    console.log('   Receptionist: receptionist@garage.co.ke / Admin@1234\n');
 
     process.exit(0);
   } catch (error) {

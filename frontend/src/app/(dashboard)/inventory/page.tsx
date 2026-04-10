@@ -2,28 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Plus, Search, Package, AlertTriangle, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
+} from '@/components/ui/sheet';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { PageSkeleton } from '@/components/shared/PageSkeleton';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { KPICard } from '@/components/shared/KPICard';
 
 interface InventoryItem {
   _id: string;
@@ -213,13 +210,10 @@ export default function InventoryPage() {
     }
   };
 
-  const getStockBadge = (item: InventoryItem) => {
-    if (item.quantity === 0) {
-      return 'bg-red-100 text-red-800';
-    } else if (item.quantity <= item.minStockLevel) {
-      return 'bg-yellow-100 text-yellow-800';
-    }
-    return 'bg-green-100 text-green-800';
+  const getStockVariant = (item: InventoryItem): 'destructive' | 'warning' | 'success' => {
+    if (item.quantity === 0) return 'destructive';
+    if (item.quantity <= item.minStockLevel) return 'warning';
+    return 'success';
   };
 
   const getStockStatus = (item: InventoryItem) => {
@@ -229,67 +223,47 @@ export default function InventoryPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <LoadingSpinner size="lg" text="Loading inventory..." />
-      </div>
-    );
+    return <PageSkeleton />;
   }
 
   const lowStockCount = items.filter(item => item.quantity <= item.minStockLevel).length;
+  const totalValue = items.reduce((sum, item) => sum + ((item.quantity || 0) * (item.costPerUnit || 0)), 0);
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Inventory Management</h1>
-        <p className="text-gray-600">Track stock levels and manage supplies</p>
-      </div>
+    <div className="space-y-6 p-6">
+      <PageHeader
+        title="Inventory Management"
+        description="Track stock levels and manage supplies"
+        action={
+          <Button onClick={handleAdd} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add Item
+          </Button>
+        }
+      />
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Items</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{items.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Low Stock Items</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{lowStockCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Value</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              Ksh {items.reduce((sum, item) => sum + ((item.quantity || 0) * (item.costPerUnit || 0)), 0).toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <KPICard title="Total Items" value={items.length} icon={Package} iconColor="text-primary" iconBg="bg-primary/10" />
+        <KPICard title="Low Stock Items" value={lowStockCount} icon={AlertTriangle} iconColor="text-warning" iconBg="bg-warning/10" />
+        <KPICard title="Total Value" value={`Ksh ${totalValue.toLocaleString()}`} icon={DollarSign} iconColor="text-success" iconBg="bg-success/10" />
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Inventory Items</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4 mb-4">
-            <Input
-              placeholder="Search items..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
-            />
+        <CardContent className="pt-6">
+          <div className="flex gap-4 mb-4 flex-wrap">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search items..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="border rounded-md px-3 py-2"
+              className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <option value="">All Categories</option>
               <option value="paint">Paint</option>
@@ -298,250 +272,266 @@ export default function InventoryPage() {
               <option value="wrap">Wrap</option>
               <option value="detailing">Detailing</option>
             </select>
-            <label className="flex items-center gap-2">
+            <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 checked={lowStockOnly}
                 onChange={(e) => setLowStockOnly(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
               />
-              <span>Low Stock Only</span>
+              Low Stock Only
             </label>
-            <Button onClick={handleAdd} className="ml-auto">
-              Add Item
-            </Button>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Item Name</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Reorder Level</TableHead>
-                <TableHead>Unit Price</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredItems.map((item) => (
-                <TableRow key={item._id}>
-                  <TableCell className="font-medium">{item.itemName}</TableCell>
-                  <TableCell>{item.sku}</TableCell>
-                  <TableCell className="capitalize">{item.category}</TableCell>
-                  <TableCell>{item.quantity}</TableCell>
-                  <TableCell>{item.minStockLevel}</TableCell>
-                  <TableCell>Ksh {(item.costPerUnit || 0).toLocaleString()}</TableCell>
-                  <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStockBadge(item)}`}>
-                      {getStockStatus(item)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => handleView(item)}>
-                        View
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleEdit(item)}>
-                        Edit
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => handleDelete(item._id)}>
-                        Delete
-                      </Button>
-                    </div>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Item Name</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>Reorder Level</TableHead>
+                  <TableHead>Unit Price</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.map((item) => (
+                  <TableRow key={item._id}>
+                    <TableCell className="font-medium">{item.itemName}</TableCell>
+                    <TableCell className="text-muted-foreground">{item.sku}</TableCell>
+                    <TableCell className="capitalize">{item.category}</TableCell>
+                    <TableCell>{item.quantity}</TableCell>
+                    <TableCell>{item.minStockLevel}</TableCell>
+                    <TableCell>Ksh {(item.costPerUnit || 0).toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStockVariant(item)}>
+                        {getStockStatus(item)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1">
+                        <Button size="sm" variant="outline" onClick={() => handleView(item)}>
+                          View
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleEdit(item)}>
+                          Edit
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleDelete(item._id)}>
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
 
           {filteredItems.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No items found
-            </div>
+            <EmptyState icon={Package} title="No items found" description="Try adjusting your search or filters" />
           )}
         </CardContent>
       </Card>
 
-      {/* View Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Item Details</DialogTitle>
-          </DialogHeader>
+      {/* View Item Sheet */}
+      <Sheet open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Item Details</SheetTitle>
+          </SheetHeader>
+          <Separator className="my-4" />
           {selectedItem && (
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-gray-600">Item Name</Label>
-                  <p className="font-medium">{selectedItem.itemName}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">SKU</Label>
-                  <p className="font-medium">{selectedItem.sku || 'N/A'}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Brand</Label>
-                  <p className="font-medium">{selectedItem.brand || 'N/A'}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Category</Label>
-                  <p className="font-medium capitalize">{selectedItem.category}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Unit</Label>
-                  <p className="font-medium">{selectedItem.unit}</p>
-                </div>
-                {selectedItem.supplier && (
-                  <div className="col-span-2">
-                    <Label className="text-gray-600">Supplier</Label>
-                    <div className="font-medium">
-                      <p>{selectedItem.supplier.name}</p>
-                      <p className="text-sm text-gray-500">{selectedItem.supplier.contact}</p>
-                      {selectedItem.supplier.email && <p className="text-sm text-gray-500">{selectedItem.supplier.email}</p>}
+            <ScrollArea className="h-[calc(100vh-200px)]">
+              <div className="space-y-6 pr-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Item Name</Label>
+                    <p className="font-medium">{selectedItem.itemName}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">SKU</Label>
+                    <p className="font-medium">{selectedItem.sku || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Brand</Label>
+                    <p className="font-medium">{selectedItem.brand || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Category</Label>
+                    <p className="font-medium capitalize">{selectedItem.category}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Unit</Label>
+                    <p className="font-medium">{selectedItem.unit}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <div className="mt-1">
+                      <Badge variant={getStockVariant(selectedItem)}>{getStockStatus(selectedItem)}</Badge>
                     </div>
                   </div>
+                </div>
+
+                {selectedItem.supplier && (
+                  <>
+                    <Separator />
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Supplier</Label>
+                      <div className="mt-1">
+                        <p className="font-medium">{selectedItem.supplier.name}</p>
+                        <p className="text-sm text-muted-foreground">{selectedItem.supplier.contact}</p>
+                        {selectedItem.supplier.email && <p className="text-sm text-muted-foreground">{selectedItem.supplier.email}</p>}
+                      </div>
+                    </div>
+                  </>
                 )}
-                <div>
-                  <Label className="text-gray-600">Quantity in Stock</Label>
-                  <p className="font-medium text-2xl">{selectedItem.quantity}</p>
+
+                <Separator />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-2xl font-bold">{selectedItem.quantity}</p>
+                    <p className="text-xs text-muted-foreground">In Stock</p>
+                  </div>
+                  <div className="rounded-lg border p-3 text-center">
+                    <p className="text-2xl font-bold">{selectedItem.minStockLevel}</p>
+                    <p className="text-xs text-muted-foreground">Reorder Level</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Unit Price</Label>
+                    <p className="font-medium">Ksh {(selectedItem.costPerUnit || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Total Value</Label>
+                    <p className="font-medium">Ksh {((selectedItem.quantity || 0) * (selectedItem.costPerUnit || 0)).toLocaleString()}</p>
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-gray-600">Reorder Level</Label>
-                  <p className="font-medium text-2xl">{selectedItem.minStockLevel}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Unit Price</Label>
-                  <p className="font-medium">Ksh {(selectedItem.costPerUnit || 0).toLocaleString()}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-600">Total Value</Label>
-                  <p className="font-medium">Ksh {((selectedItem.quantity || 0) * (selectedItem.costPerUnit || 0)).toLocaleString()}</p>
-                </div>
+
                 {selectedItem.lastRestocked && (
-                  <div className="col-span-2">
-                    <Label className="text-gray-600">Last Restocked</Label>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Last Restocked</Label>
                     <p className="font-medium">{new Date(selectedItem.lastRestocked).toLocaleDateString()}</p>
                   </div>
                 )}
               </div>
-            </div>
+            </ScrollArea>
           )}
-          <DialogFooter>
+          <Separator className="my-4" />
+          <SheetFooter>
             <Button onClick={() => setIsViewDialogOpen(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      {/* Add/Edit Dialog */}
-      <Dialog open={isAddEditDialogOpen} onOpenChange={setIsAddEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{isEditMode ? 'Edit Item' : 'Add New Item'}</DialogTitle>
-            <DialogDescription>
-              {isEditMode ? 'Update item information' : 'Add a new item to inventory'}
-            </DialogDescription>
-          </DialogHeader>
+      {/* Add/Edit Item Sheet */}
+      <Sheet open={isAddEditDialogOpen} onOpenChange={setIsAddEditDialogOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>{isEditMode ? 'Edit Item' : 'Add New Item'}</SheetTitle>
+          </SheetHeader>
+          <Separator className="my-4" />
           <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
-              <div>
-                <Label htmlFor="itemName">Item Name</Label>
-                <Input
-                  id="itemName"
-                  value={formData.itemName}
-                  onChange={(e) => setFormData({ ...formData, itemName: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+            <ScrollArea className="h-[calc(100vh-220px)]">
+              <div className="space-y-4 pr-2">
                 <div>
-                  <Label htmlFor="sku">SKU</Label>
+                  <Label htmlFor="itemName">Item Name *</Label>
                   <Input
-                    id="sku"
-                    value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    id="itemName"
+                    value={formData.itemName}
+                    onChange={(e) => setFormData({ ...formData, itemName: e.target.value })}
+                    required
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="sku">SKU</Label>
+                    <Input
+                      id="sku"
+                      value={formData.sku}
+                      onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="brand">Brand</Label>
+                    <Input
+                      id="brand"
+                      value={formData.brand}
+                      onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="category">Category *</Label>
+                    <select
+                      id="category"
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      required
+                    >
+                      <option value="paint">Paint</option>
+                      <option value="chemical">Chemical</option>
+                      <option value="film">Film</option>
+                      <option value="tool">Tool</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="unit">Unit *</Label>
+                    <select
+                      id="unit"
+                      value={formData.unit}
+                      onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      required
+                    >
+                      <option value="liters">Liters</option>
+                      <option value="gallons">Gallons</option>
+                      <option value="kg">Kilograms</option>
+                      <option value="pieces">Pieces</option>
+                      <option value="rolls">Rolls</option>
+                      <option value="bottles">Bottles</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="quantity">Quantity *</Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      value={formData.quantity}
+                      onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="minStockLevel">Reorder Level *</Label>
+                    <Input
+                      id="minStockLevel"
+                      type="number"
+                      value={formData.minStockLevel}
+                      onChange={(e) => setFormData({ ...formData, minStockLevel: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
                 <div>
-                  <Label htmlFor="brand">Brand</Label>
+                  <Label htmlFor="costPerUnit">Unit Price (Ksh) *</Label>
                   <Input
-                    id="brand"
-                    value={formData.brand}
-                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="category">Category</Label>
-                  <select
-                    id="category"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full border rounded-md px-3 py-2"
-                    required
-                  >
-                    <option value="paint">Paint</option>
-                    <option value="chemical">Chemical</option>
-                    <option value="film">Film</option>
-                    <option value="tool">Tool</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="unit">Unit</Label>
-                  <select
-                    id="unit"
-                    value={formData.unit}
-                    onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                    className="w-full border rounded-md px-3 py-2"
-                    required
-                  >
-                    <option value="liters">Liters</option>
-                    <option value="gallons">Gallons</option>
-                    <option value="kg">Kilograms</option>
-                    <option value="pieces">Pieces</option>
-                    <option value="rolls">Rolls</option>
-                    <option value="bottles">Bottles</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="quantity">Quantity in Stock</Label>
-                  <Input
-                    id="quantity"
+                    id="costPerUnit"
                     type="number"
-                    value={formData.quantity}
-                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                    step="0.01"
+                    value={formData.costPerUnit}
+                    onChange={(e) => setFormData({ ...formData, costPerUnit: e.target.value })}
                     required
                   />
                 </div>
-                <div>
-                  <Label htmlFor="minStockLevel">Reorder Level</Label>
-                  <Input
-                    id="minStockLevel"
-                    type="number"
-                    value={formData.minStockLevel}
-                    onChange={(e) => setFormData({ ...formData, minStockLevel: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="costPerUnit">Unit Price (Ksh)</Label>
-                <Input
-                  id="costPerUnit"
-                  type="number"
-                  step="0.01"
-                  value={formData.costPerUnit}
-                  onChange={(e) => setFormData({ ...formData, costPerUnit: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label className="font-semibold">Supplier Information</Label>
+                <Separator />
+                <p className="text-sm font-medium">Supplier Information</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="supplierName">Supplier Name</Label>
@@ -561,7 +551,7 @@ export default function InventoryPage() {
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="supplierEmail">Email (Optional)</Label>
+                  <Label htmlFor="supplierEmail">Email</Label>
                   <Input
                     id="supplierEmail"
                     type="email"
@@ -570,16 +560,17 @@ export default function InventoryPage() {
                   />
                 </div>
               </div>
-            </div>
-            <DialogFooter>
+            </ScrollArea>
+            <Separator className="my-4" />
+            <SheetFooter>
               <Button type="button" variant="outline" onClick={() => setIsAddEditDialogOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit">{isEditMode ? 'Update' : 'Add'} Item</Button>
-            </DialogFooter>
+            </SheetFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

@@ -12,7 +12,6 @@ export class CarController {
     try {
       const user = (req as any).user;
       
-      // Add audit trail - who created this record
       const carData = {
         ...req.body,
         createdBy: user._id || user.userId,
@@ -23,7 +22,7 @@ export class CarController {
 
       res.status(201).json({
         success: true,
-        message: 'Car added successfully',
+        message: 'Job card created successfully',
         data: car
       });
     } catch (error) {
@@ -33,13 +32,18 @@ export class CarController {
 
   getAllCars = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { stage, serviceType, assignedMechanicId, paymentStatus, page, limit } = req.query;
+      const { stage, serviceType, assignedMechanicId, paymentStatus, jobType, priority, isPaused, bayNumber, search, page, limit } = req.query;
 
       const filters: any = {};
       if (stage) filters.stage = stage;
       if (serviceType) filters.serviceType = serviceType;
       if (assignedMechanicId) filters.assignedMechanicId = assignedMechanicId;
       if (paymentStatus) filters.paymentStatus = paymentStatus;
+      if (jobType) filters.jobType = jobType;
+      if (priority) filters.priority = priority;
+      if (isPaused !== undefined) filters.isPaused = isPaused === 'true';
+      if (bayNumber) filters.bayNumber = bayNumber;
+      if (search) filters.search = search;
 
       const result = await this.carService.getAllCars(
         filters,
@@ -73,7 +77,6 @@ export class CarController {
     try {
       const user = (req as any).user;
       
-      // Add audit trail - who modified this record
       const updateData = {
         ...req.body,
         lastModifiedBy: user._id || user.userId,
@@ -84,7 +87,86 @@ export class CarController {
 
       res.status(200).json({
         success: true,
-        message: 'Car updated successfully',
+        message: 'Job card updated successfully',
+        data: car
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // Pause a job card
+  pauseCar = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = (req as any).user;
+      const { reason } = req.body;
+      const userId = user._id || user.userId;
+      const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'System';
+
+      const car = await this.carService.pauseCar(req.params.id, reason, userId, userName);
+
+      res.status(200).json({
+        success: true,
+        message: 'Job card paused',
+        data: car
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // Resume a paused job card
+  resumeCar = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = (req as any).user;
+      const userId = user._id || user.userId;
+      const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'System';
+
+      const car = await this.carService.resumeCar(req.params.id, userId, userName);
+
+      res.status(200).json({
+        success: true,
+        message: 'Job card resumed',
+        data: car
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // Approve a job card
+  approveCar = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = (req as any).user;
+      const { notes } = req.body;
+      const userId = user._id || user.userId;
+      const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'System';
+
+      const car = await this.carService.approveCar(req.params.id, notes || '', userId, userName);
+
+      res.status(200).json({
+        success: true,
+        message: 'Job card approved',
+        data: car
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // Reject a job card
+  rejectCar = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = (req as any).user;
+      const { notes } = req.body;
+      const userId = user._id || user.userId;
+      const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'System';
+
+      const car = await this.carService.rejectCar(req.params.id, notes || '', userId, userName);
+
+      res.status(200).json({
+        success: true,
+        message: 'Job card rejected',
         data: car
       });
     } catch (error) {
@@ -98,7 +180,7 @@ export class CarController {
 
       res.status(200).json({
         success: true,
-        message: 'Car removed successfully'
+        message: 'Job card removed successfully'
       });
     } catch (error) {
       next(error);

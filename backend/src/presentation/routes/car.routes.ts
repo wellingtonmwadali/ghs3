@@ -19,4 +19,10 @@ router.get('/:id', carController.getCarById);
 router.put('/:id', authorize('owner', 'manager', 'mechanic'), validate(updateCarSchema), carController.updateCar);
 router.delete('/:id', authorize('owner', 'manager'), carController.deleteCar);
 
+// Job card workflow actions
+router.post('/:id/pause', authorize('owner', 'manager', 'mechanic'), carController.pauseCar);
+router.post('/:id/resume', authorize('owner', 'manager', 'mechanic'), carController.resumeCar);
+router.post('/:id/approve', authorize('owner', 'manager'), carController.approveCar);
+router.post('/:id/reject', authorize('owner', 'manager'), carController.rejectCar);
+
 export default router;

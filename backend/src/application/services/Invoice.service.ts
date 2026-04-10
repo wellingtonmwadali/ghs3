@@ -189,6 +189,10 @@ export class InvoiceService {
 
   async getRevenueStats() {
     const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+    const startOfWeek = new Date(startOfDay);
+    startOfWeek.setDate(startOfDay.getDate() - startOfDay.getDay());
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
@@ -199,6 +203,20 @@ export class InvoiceService {
     const paidInvoices = allInvoices.filter(inv => (inv as any).paymentStatus === 'paid').length;
     const unpaidInvoices = allInvoices.filter(inv => (inv as any).paymentStatus === 'pending').length;
     const partialInvoices = allInvoices.filter(inv => (inv as any).paymentStatus === 'partial').length;
+
+    // Today's revenue
+    const todayInvoices = allInvoices.filter(inv => {
+      const issueDate = new Date((inv as any).issuedDate);
+      return issueDate >= startOfDay && issueDate <= endOfDay;
+    });
+    const revenueToday = todayInvoices.reduce((sum, inv) => sum + ((inv as any).paidAmount || 0), 0);
+
+    // This week's revenue
+    const thisWeekInvoices = allInvoices.filter(inv => {
+      const issueDate = new Date((inv as any).issuedDate);
+      return issueDate >= startOfWeek && issueDate <= endOfDay;
+    });
+    const revenueThisWeek = thisWeekInvoices.reduce((sum, inv) => sum + ((inv as any).paidAmount || 0), 0);
     
     // This month's invoices
     const thisMonthInvoices = allInvoices.filter(inv => {
@@ -305,6 +323,8 @@ export class InvoiceService {
       unpaidInvoices,
       partialInvoices,
       totalInvoicesThisMonth,
+      revenueToday,
+      revenueThisWeek,
       revenueThisMonth,
       revenueTrend: Number(revenueTrend),
       averageInvoiceValue: Math.round(averageInvoiceValue),
@@ -312,6 +332,108 @@ export class InvoiceService {
       paymentMethodDistribution,
       monthlyRevenue
     };
+  }
+
+  async generateFromJobCard(carId: string) {
+    const car = await this.carRepository.findById(carId);
+    if (!car) {
+      throw new AppError('Job card not found', 404);
+    }
+
+    const carData = car as any;
+
+    // Check if invoice already exists for this car
+    const existing = await this.invoiceRepository.findByCar(carId);
+    if (existing && existing.length > 0) {
+      throw new AppError('An invoice already exists for this job card', 400);
+    }
+
+    if (!carData.customerId) {
+      throw new AppError('Job card has no customer assigned', 400);
+    }
+
+    // Build invoice items from labor lines + parts used
+    const items: { description: string; quantity: number; unitPrice: number; total: number }[] = [];
+
+    // Add labor lines
+    if (carData.laborLines && carData.laborLines.length > 0) {
+      for (const line of carData.laborLines) {
+        items.push({
+          description: `Labor: ${line.description}${line.technicianName ? ` (${line.technicianName})` : ''}`,
+          quantity: line.hours,
+          unitPrice: line.rate,
+          total: line.total,
+        });
+      }
+    }
+
+    // Add parts used
+    if (carData.partsUsed && carData.partsUsed.length > 0) {
+      for (const part of carData.partsUsed) {
+        const unitPrice = part.unitPrice || 0;
+        items.push({
+          description: `Part: ${part.itemName}`,
+          quantity: part.quantity,
+          unitPrice,
+          total: unitPrice * part.quantity,
+        });
+      }
+    }
+
+    // Add custom service if present
+    if (carData.customServiceDescription && carData.customServiceAmount) {
+      items.push({
+        description: carData.customServiceDescription,
+        quantity: 1,
+        unitPrice: carData.customServiceAmount,
+        total: carData.customServiceAmount,
+      });
+    }
+
+    if (items.length === 0) {
+      throw new AppError('Job card has no labor lines or parts to invoice', 400);
+    }
+
+    const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+    const taxRate = 16; // Kenya VAT 16%
+    const tax = Math.round(subtotal * taxRate / 100);
+    const total = subtotal + tax;
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30); // Net 30
+
+    const invoiceData: IInvoice = {
+      invoiceNumber: '', // will be generated
+      carId,
+      customerId: carData.customerId.toString(),
+      items,
+      subtotal,
+      tax,
+      taxRate,
+      total,
+      paidAmount: carData.paidAmount || 0,
+      balance: total - (carData.paidAmount || 0),
+      paymentStatus: 'pending',
+      payments: [],
+      issuedDate: new Date(),
+      dueDate,
+      notes: `Auto-generated from Job Card ${carData.jobCardNumber || carId}`,
+    };
+
+    // Set correct payment status
+    if (invoiceData.paidAmount >= total) {
+      invoiceData.paymentStatus = 'paid';
+      invoiceData.balance = 0;
+    } else if (invoiceData.paidAmount > 0) {
+      invoiceData.paymentStatus = 'partial';
+    }
+
+    const invoice = await this.createInvoice(invoiceData);
+
+    // Update car with invoice back-reference
+    await this.carRepository.update(carId, { invoiceId: (invoice as any)._id.toString() });
+
+    return invoice;
   }
 
   async deleteInvoice(id: string) {

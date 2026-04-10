@@ -42,6 +42,5 @@ ExpenseSchema.index({ date: -1 });
 ExpenseSchema.index({ category: 1, date: -1 });
 ExpenseSchema.index({ status: 1 });
 ExpenseSchema.index({ relatedCarId: 1 });
-ExpenseSchema.index({ expenseNumber: 1 }, { unique: true });
 
 export const ExpenseModel = model<IExpenseDocument>('Expense', ExpenseSchema);

@@ -109,4 +109,18 @@ export class InvoiceController {
       next(error);
     }
   };
+
+  generateFromJobCard = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const invoice = await this.invoiceService.generateFromJobCard(req.params.carId);
+
+      res.status(201).json({
+        success: true,
+        message: 'Invoice generated from job card successfully',
+        data: invoice
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

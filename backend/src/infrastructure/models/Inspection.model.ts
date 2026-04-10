@@ -13,7 +13,7 @@ const InspectionSchema = new Schema<InspectionDocument>(
     vehicleId: {
       type: String,
       required: true,
-      ref: 'Vehicle'
+      ref: 'Car'
     },
     customerId: {
       type: String,

@@ -59,7 +59,6 @@ const InvoiceSchema = new Schema<IInvoiceDocument>(
   { timestamps: true }
 );
 
-InvoiceSchema.index({ invoiceNumber: 1 });
 InvoiceSchema.index({ customerId: 1, issuedDate: -1 });
 InvoiceSchema.index({ paymentStatus: 1 });
 

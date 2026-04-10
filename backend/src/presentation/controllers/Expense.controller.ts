@@ -42,8 +42,9 @@ export class ExpenseController {
 
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
       const skip = req.query.skip ? parseInt(req.query.skip as string) : 0;
+      const page = limit > 0 ? Math.floor(skip / limit) + 1 : 1;
 
-      const expenses = await this.expenseService.getAllExpenses(filters, limit, skip);
+      const expenses = await this.expenseService.getAllExpenses(filters, page, limit);
 
       res.status(200).json({
         success: true,

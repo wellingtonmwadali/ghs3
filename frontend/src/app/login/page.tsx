@@ -25,9 +25,9 @@ export default function LoginPage() {
 
     try {
       const response = await api.post('/auth/login', { email, password });
-      const { user, token } = response.data.data;
+      const { token, user, session } = response.data.data;
 
-      setAuth(user, token);
+      setAuth(user, token, session);
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid email or password');
@@ -73,7 +73,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div className="text-sm text-red-600">
+              <div className="text-sm text-destructive">
                 {error}
               </div>
             )}

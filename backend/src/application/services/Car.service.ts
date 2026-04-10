@@ -3,9 +3,22 @@ import { CustomerRepository } from '../../infrastructure/repositories/Customer.r
 import { MechanicRepository } from '../../infrastructure/repositories/Mechanic.repository';
 import { InvoiceRepository } from '../../infrastructure/repositories/Invoice.repository';
 import { InventoryService } from './Inventory.service';
-import { ICar, ICarFilters } from '../../domain/entities/Car';
+import { ICar, ICarFilters, CarStage } from '../../domain/entities/Car';
 import { AppError } from '../../presentation/middlewares/error.middleware';
 import { EnhancedError, ErrorFactory, ErrorHandler } from '../../utils/errorHandler';
+
+// Stage progression order for progress calc
+const STAGE_ORDER: CarStage[] = [
+  'booked_in', 'waiting_inspection', 'diagnosed', 'awaiting_approval',
+  'awaiting_parts', 'in_repair', 'painting', 'detailing',
+  'quality_check', 'ready_pickup', 'completed', 'collected'
+];
+
+function stageProgress(stage: CarStage): number {
+  const idx = STAGE_ORDER.indexOf(stage);
+  if (idx === -1) return 0;
+  return Math.round((idx / (STAGE_ORDER.length - 1)) * 100);
+}
 
 export class CarService {
   private carRepository: CarRepository;
@@ -23,21 +36,38 @@ export class CarService {
   }
 
   async createCar(carData: ICar) {
-    try {
-      // Validate customer exists
-      const customer = await this.customerRepository.findById(carData.customerId);
-      if (!customer) {
-        throw ErrorFactory.notFound('Customer', carData.customerId);
-      }
+    // Validate customer exists
+    const customer = await this.customerRepository.findById(carData.customerId);
+    if (!customer) {
+      throw ErrorFactory.notFound('Customer', carData.customerId);
+    }
 
-      // Check for duplicate vehicle plate in active services
-      const existingCar = await this.carRepository.findByPlateNumber(carData.vehiclePlate, true);
-      if (existingCar) {
-        throw ErrorFactory.duplicateVehiclePlate(carData.vehiclePlate, existingCar.stage);
-      }
+    // Check for duplicate vehicle plate in active services
+    const existingCar = await this.carRepository.findByPlateNumber(carData.vehiclePlate, true);
+    if (existingCar) {
+      throw ErrorFactory.duplicateVehiclePlate(carData.vehiclePlate, existingCar.stage);
+    }
 
-      // Calculate days in garage
-      carData.daysInGarage = 0;
+    // Generate job card number
+    carData.jobCardNumber = await this.carRepository.generateJobCardNumber();
+
+    // Set defaults
+    carData.daysInGarage = 0;
+    if (!carData.stage) carData.stage = 'booked_in';
+    if (!carData.jobType) carData.jobType = 'walk_in';
+    if (!carData.priority) carData.priority = 'normal';
+    carData.statusProgress = stageProgress(carData.stage);
+
+    // Comeback warning — same plate + similar complaint within 30 days
+    if (carData.complaint) {
+      const recent = await this.carRepository.findRecentByPlateAndComplaint(
+        carData.vehiclePlate,
+        carData.complaint
+      );
+      if (recent) {
+        carData.comebackWarning = true;
+      }
+    }
 
     // Auto-suggest mechanic if not assigned
     if (!carData.assignedMechanicId) {
@@ -53,6 +83,15 @@ export class CarService {
       }
     }
 
+    // Seed initial status history
+    carData.statusHistory = [{
+      stage: carData.stage,
+      changedBy: carData.createdBy || 'system',
+      changedByName: carData.createdByName || 'System',
+      changedAt: new Date(),
+      notes: 'Job card created'
+    }];
+
     const car = await this.carRepository.create(carData);
 
     // Assign job to mechanic
@@ -60,7 +99,7 @@ export class CarService {
       await this.mechanicRepository.assignJob(car.assignedMechanicId, car._id!.toString());
     }
 
-    // Add to customer service history with proper structure
+    // Add to customer service history
     await this.customerRepository.addToServiceHistory(
       carData.customerId, 
       {
@@ -104,49 +143,105 @@ export class CarService {
       throw new AppError('Car not found', 404);
     }
 
-    // If car is being inspected (moving from waiting_inspection to another stage) and inspector not recorded
-    if (
-      updateData.stage && 
-      updateData.stage !== 'waiting_inspection' && 
-      car.stage === 'waiting_inspection' && 
-      !car.inspectedBy
-    ) {
-      updateData.inspectedBy = updateData.lastModifiedBy;
-      updateData.inspectorName = updateData.lastModifiedByName;
+    const userId = updateData.lastModifiedBy || 'system';
+    const userName = updateData.lastModifiedByName || 'System';
+
+    // ── Pause / Resume handling ──
+    if (updateData.isPaused === true && !car.isPaused) {
+      const pauseRecord = {
+        pausedAt: new Date(),
+        reason: updateData.pauseReason || 'No reason given',
+        pausedBy: userId,
+        pausedByName: userName
+      };
+      await this.carRepository.pushToArray(id, 'pauseHistory', pauseRecord);
+    } else if (updateData.isPaused === false && car.isPaused) {
+      // Close the last open pause record
+      const history = car.pauseHistory || [];
+      const lastPause = history[history.length - 1];
+      if (lastPause && !lastPause.resumedAt) {
+        lastPause.resumedAt = new Date();
+        updateData.pauseHistory = history as any;
+      }
+      updateData.pauseReason = undefined;
     }
 
-    // If stage is being changed to completed
-    if (updateData.stage === 'completed' && car.stage !== 'completed') {
-      updateData.completionDate = new Date();
-      updateData.statusProgress = 100;
+    // ── Approval workflow ──
+    if (updateData.approvalStatus && updateData.approvalStatus !== car.approvalStatus) {
+      if (updateData.approvalStatus === 'approved' || updateData.approvalStatus === 'rejected') {
+        updateData.approvedBy = userId;
+        updateData.approvedByName = userName;
+        updateData.approvedAt = new Date();
+      }
+      // Auto-advance stage on approval
+      if (updateData.approvalStatus === 'approved' && car.stage === 'awaiting_approval') {
+        updateData.stage = 'awaiting_parts' as CarStage;
+      }
+    }
 
-      // Deduct inventory for parts used
-      if (car.partsUsed && car.partsUsed.length > 0) {
-        try {
-          const partsToDeduct = car.partsUsed.map(part => ({
-            itemId: part.itemId,
-            quantity: part.quantity
-          }));
-          
-          await this.inventoryService.deductMultipleItems(
-            partsToDeduct,
-            `Service completion for car ${car.vehiclePlate}`
-          );
-          
-          console.log(`[INVENTORY] Auto-deducted ${partsToDeduct.length} items for car ${id}`);
-        } catch (error) {
-          console.error('[INVENTORY] Failed to deduct parts:', error);
-          // Don't fail the completion if inventory deduction fails
-          // Log for manual reconciliation
+    // ── Stage transition logic ──
+    if (updateData.stage && updateData.stage !== car.stage) {
+      const newStage = updateData.stage as CarStage;
+      updateData.statusProgress = stageProgress(newStage);
+
+      // Record in status history
+      const historyEntry = {
+        stage: newStage,
+        changedBy: userId,
+        changedByName: userName,
+        changedAt: new Date(),
+        notes: (updateData as any).stageNotes || undefined
+      };
+      await this.carRepository.pushToArray(id, 'statusHistory', historyEntry);
+
+      // If car is being inspected (moving from waiting_inspection) and inspector not recorded
+      if (
+        newStage !== 'waiting_inspection' &&
+        car.stage === 'waiting_inspection' &&
+        !car.inspectedBy
+      ) {
+        updateData.inspectedBy = userId;
+        updateData.inspectorName = userName;
+      }
+
+      // Completion handling
+      if ((newStage === 'completed' || newStage === 'collected') && car.stage !== 'completed' && car.stage !== 'collected') {
+        updateData.completionDate = new Date();
+        updateData.statusProgress = newStage === 'collected' ? 100 : 95;
+
+        // Auto-calculate actualCost from labor lines if not set
+        if (!car.actualCost && car.laborLines && car.laborLines.length > 0) {
+          const laborTotal = car.laborLines.reduce((sum, l) => sum + l.total, 0);
+          const partsTotal = (car.partsUsed || []).reduce((sum, p) => sum + (p.unitPrice || 0) * p.quantity, 0);
+          updateData.actualCost = laborTotal + partsTotal;
+        }
+
+        // Deduct inventory for parts used
+        if (car.partsUsed && car.partsUsed.length > 0) {
+          try {
+            const partsToDeduct = car.partsUsed.map(part => ({
+              itemId: part.itemId,
+              quantity: part.quantity
+            }));
+            
+            await this.inventoryService.deductMultipleItems(
+              partsToDeduct,
+              `Service completion for car ${car.vehiclePlate}`
+            );
+            
+            console.log(`[INVENTORY] Auto-deducted ${partsToDeduct.length} items for car ${id}`);
+          } catch (error) {
+            console.error('[INVENTORY] Failed to deduct parts:', error);
+          }
+        }
+
+        // Mark job as completed for mechanic
+        if (car.assignedMechanicId) {
+          await this.mechanicRepository.completeJob(car.assignedMechanicId, id);
         }
       }
-
-      // Mark job as completed for mechanic
-      if (car.assignedMechanicId) {
-        await this.mechanicRepository.completeJob(car.assignedMechanicId, id);
-      }
     }
-    
+
     // Update audit trail
     if (updateData.lastModifiedBy) {
       updateData.lastModifiedAt = new Date();
@@ -163,10 +258,9 @@ export class CarService {
     if (updateData.paidAmount !== undefined || updateData.paymentStatus !== undefined) {
       const invoices = await this.invoiceRepository.findByCar(id);
       if (invoices && invoices.length > 0) {
-        const invoice = invoices[0]; // Get the first/latest invoice
+        const invoice = invoices[0];
         const invoiceData = invoice as any;
         
-        // Update invoice with new payment info
         const newPaidAmount = updateData.paidAmount !== undefined ? updateData.paidAmount : invoiceData.paidAmount;
         const newBalance = invoiceData.total - newPaidAmount;
         
@@ -185,7 +279,47 @@ export class CarService {
       }
     }
 
+    // Clean up internal-only fields before save
+    delete (updateData as any).stageNotes;
+
     return await this.carRepository.update(id, updateData);
+  }
+
+  // ── Pause / Resume helpers ──
+  async pauseCar(id: string, reason: string, userId: string, userName: string) {
+    return this.updateCar(id, {
+      isPaused: true,
+      pauseReason: reason,
+      lastModifiedBy: userId,
+      lastModifiedByName: userName
+    });
+  }
+
+  async resumeCar(id: string, userId: string, userName: string) {
+    return this.updateCar(id, {
+      isPaused: false,
+      lastModifiedBy: userId,
+      lastModifiedByName: userName
+    });
+  }
+
+  // ── Approval helpers ──
+  async approveCar(id: string, notes: string, userId: string, userName: string) {
+    return this.updateCar(id, {
+      approvalStatus: 'approved',
+      approvalNotes: notes,
+      lastModifiedBy: userId,
+      lastModifiedByName: userName
+    });
+  }
+
+  async rejectCar(id: string, notes: string, userId: string, userName: string) {
+    return this.updateCar(id, {
+      approvalStatus: 'rejected',
+      approvalNotes: notes,
+      lastModifiedBy: userId,
+      lastModifiedByName: userName
+    });
   }
 
   async deleteCar(id: string) {
@@ -214,18 +348,21 @@ export class CarService {
 
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    // Get counts
+    // Get counts — exclude completed + collected
     const totalCarsInGarage = await this.carRepository.countByFilters({
-      stage: { $ne: 'completed' } as any
+      stage: { $nin: ['completed', 'collected'] } as any
     });
 
     const carsCompletedToday = await this.carRepository.findCompletedToday();
 
     const carsWaitingPickup = await this.carRepository.countByStage('ready_pickup');
 
-    const stages = ['waiting_inspection', 'in_repair', 'painting', 'detailing', 'quality_check'];
+    const activeStages: CarStage[] = [
+      'booked_in', 'waiting_inspection', 'diagnosed', 'awaiting_approval',
+      'awaiting_parts', 'in_repair', 'painting', 'detailing', 'quality_check'
+    ];
     const carsInProgress = await Promise.all(
-      stages.map(stage => this.carRepository.countByStage(stage))
+      activeStages.map(stage => this.carRepository.countByStage(stage))
     );
     const totalInProgress = carsInProgress.reduce((a, b) => a + b, 0);
 

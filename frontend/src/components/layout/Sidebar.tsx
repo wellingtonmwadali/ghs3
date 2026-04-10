@@ -14,18 +14,22 @@ import {
   Calendar,
   Settings,
   LogOut,
-  BarChart3
+  BarChart3,
+  ClipboardCheck,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Cars', href: '/cars', icon: Car },
+  { name: 'Inspections', href: '/inspections', icon: ClipboardCheck },
   { name: 'Customers', href: '/customers', icon: Users },
+  { name: 'Bookings', href: '/bookings', icon: Calendar },
   { name: 'Invoices', href: '/invoices', icon: FileText },
   { name: 'Inventory', href: '/inventory', icon: Package },
   { name: 'Team', href: '/mechanics', icon: Wrench },
-  { name: 'Bookings', href: '/bookings', icon: Calendar },
+  { name: 'Attendance', href: '/attendance', icon: Clock },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
@@ -118,7 +122,7 @@ export default function Sidebar() {
       <div className="border-t p-4">
         <div className="mb-3 px-3">
           <p className="text-sm font-medium">{user?.firstName} {user?.lastName}</p>
-          <p className="text-xs text-muted-foreground">{user?.role}</p>
+          <p className="text-xs text-muted-foreground capitalize">{user?.role?.name || user?.role?.slug}</p>
         </div>
         <button
           onClick={logout}

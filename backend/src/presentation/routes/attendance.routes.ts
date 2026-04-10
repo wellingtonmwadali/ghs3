@@ -16,8 +16,8 @@ router.post('/clock-in', authorize('mechanic'), validate(clockInSchema), attenda
 // Clock out - with geolocation validation
 router.post('/clock-out', authorize('mechanic'), validate(clockOutSchema), attendanceController.clockOut.bind(attendanceController));
 
-// Get current status of logged-in mechanic
-router.get('/status', authorize('mechanic'), attendanceController.getCurrentStatus.bind(attendanceController));
+// Get current status of logged-in user (mechanics see their own, managers/owners can view)
+router.get('/status', authorize('owner', 'manager', 'mechanic'), attendanceController.getCurrentStatus.bind(attendanceController));
 
 // Get today's attendance (all mechanics) - managers/owners only
 router.get('/today', authorize('owner', 'manager'), attendanceController.getTodayAttendance.bind(attendanceController));
