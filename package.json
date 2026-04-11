@@ -2,8 +2,8 @@
   "name": "ghs3",
   "version": "1.0.0",
   "scripts": {
-    "build": "npm --prefix backend install && npm --prefix backend run build",
-    "start": "npm --prefix backend start"
+    "build": "cd backend && npm install && npm run build",
+    "start": "cd backend && npm start"
   },
   "devDependencies": {
     "tailwindcss-animate": "^1.0.7"
