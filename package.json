@@ -2,13 +2,8 @@
   "name": "ghs3",
   "version": "1.0.0",
   "scripts": {
-    "install:backend": "cd backend && npm install --include=dev",
-    "install:frontend": "cd frontend && npm install",
-    "install:all": "npm run install:backend && npm run install:frontend",
-    "build:backend": "cd backend && npm run build",
-    "build:frontend": "cd frontend && npm run build",
-    "build": "npm run install:backend && npm run build:backend",
-    "start": "cd backend && npm start"
+    "build": "npm --prefix backend install && npm --prefix backend run build",
+    "start": "npm --prefix backend start"
   },
   "devDependencies": {
     "tailwindcss-animate": "^1.0.7"
