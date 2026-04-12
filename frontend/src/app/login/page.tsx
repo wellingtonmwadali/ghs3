@@ -25,13 +25,18 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      console.log('[Login] Attempting login for:', email);
       const response = await api.post('/auth/login', { email, password });
+      console.log('[Login] Response status:', response.status);
       const { token, user, session } = response.data.data;
+      console.log('[Login] User:', user.email, 'Role:', user.role.slug);
 
       setAuth(user, token, session);
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Invalid email or password');
+      const message = err.response?.data?.message || err.message || 'Invalid email or password';
+      console.error('[Login] Error:', err.response?.status, message);
+      setError(message);
     } finally {
       setLoading(false);
     }

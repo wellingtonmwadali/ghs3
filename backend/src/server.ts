@@ -31,14 +31,16 @@ import receiptRoutes from './presentation/routes/receipt.routes';
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
-// Security middleware
-app.use(helmet());
-app.use(securityHeaders);
-app.use(trackSuspiciousActivity);
+// CORS must come first — before helmet and security middleware
 app.use(cors({
   origin: (process.env.FRONTEND_URL || 'http://localhost:3000').split(',').map(s => s.trim()),
   credentials: true
 }));
+
+// Security middleware
+app.use(helmet());
+app.use(securityHeaders);
+app.use(trackSuspiciousActivity);
 
 // Rate limiting
 const limiter = rateLimit({
